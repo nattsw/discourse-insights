@@ -570,6 +570,16 @@
   vertical-align: middle;
 }
 
+// Reports info tooltip
+.insights-reports-info {
+  display: inline-flex;
+  margin-left: 0.25em;
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
 // Report charts
 .insights-explore__body--reports {
   display: grid;

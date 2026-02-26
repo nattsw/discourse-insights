@@ -17,6 +17,7 @@ import { popupAjaxError } from "discourse/lib/ajax-error";
 import getURL from "discourse/lib/get-url";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
+import DTooltip from "discourse/float-kit/components/d-tooltip";
 import AddReportModal from "./add-report-modal";
 import InsightsDateRangeModal from "./insights-date-range-modal";
 import InsightsReportChart from "./insights-report-chart";
@@ -967,9 +968,14 @@ export default class InsightsDashboard extends Component {
                 {{on "click" (fn this.toggleExplore "reports")}}
               >
                 <span class="insights-explore__icon">›</span>
-                <span class="insights-explore__title">{{i18n
-                    "discourse_insights.reports.title"
-                  }}</span>
+                <span class="insights-explore__title">
+                  {{i18n "discourse_insights.reports.title"}}
+                  <DTooltip
+                    class="insights-reports-info"
+                    @icon="circle-info"
+                    @content={{i18n "discourse_insights.reports.personal_hint"}}
+                  />
+                </span>
                 <span class="insights-explore__summary">{{i18n
                     "discourse_insights.reports.summary"
                   }}</span>

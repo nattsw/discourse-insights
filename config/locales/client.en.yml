@@ -67,6 +67,7 @@ en:
       reports:
         title: "My Reports"
         summary: "Data Explorer queries as charts"
+        personal_hint: "Your report selection is saved per-user. Others on your team will see their own picks."
         add_title: "Add Report"
         add: "Add"
         add_report: "Add Report"
