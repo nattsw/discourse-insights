@@ -312,29 +312,36 @@
   margin-bottom: 1em;
 }
 
-// Custom question input
-.insights-custom-question {
-  display: flex;
-  flex: 1;
-  min-width: 200px;
+// Ask input at bottom of insights card
+.insights-ask {
+  margin-top: 1.25em;
 
   &__input {
     width: 100%;
     font-size: var(--font-down-1);
-    padding: 0.375em 0.875em;
-    border: 1px solid var(--primary-low);
-    border-radius: 20px;
-    background: var(--secondary);
+    padding: 0.625em 0.75em;
+    border: none;
+    border-radius: var(--d-border-radius);
+    background: var(--primary-very-low);
     color: var(--primary);
     outline: none;
-    transition: border-color 0.15s;
+    transition: background-color 0.15s, box-shadow 0.15s;
 
     &::placeholder {
-      color: var(--primary-medium);
+      color: var(--primary-low-mid);
+    }
+
+    &:hover {
+      background: var(--primary-low);
     }
 
     &:focus {
-      border-color: var(--tertiary);
+      background: var(--secondary);
+      box-shadow: 0 0 0 1px var(--tertiary);
+
+      &::placeholder {
+        color: var(--primary-medium);
+      }
     }
   }
 }
