@@ -10,6 +10,8 @@ en:
       compare_to: "Trends compared to %{dates}"
       error: "Could not load insights data."
       refresh: "Refresh"
+      date_range_title: "Custom Date Range"
+      date_range_apply: "Apply"
       refresh_tooltip: "Data is cached for 35 minutes. Click to refresh now."
       periods:
         7d: "Last 7 days"

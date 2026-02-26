@@ -18,6 +18,7 @@ import getURL from "discourse/lib/get-url";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
 import AddReportModal from "./add-report-modal";
+import InsightsDateRangeModal from "./insights-date-range-modal";
 import InsightsReportChart from "./insights-report-chart";
 
 const AI_TIMEOUT_MS = 30000;
@@ -92,6 +93,16 @@ export default class InsightsDashboard extends Component {
   constructor() {
     super(...arguments);
     this.data = this.args.initialData;
+
+    const ctrl = this.args.controller;
+    if (ctrl?.start_date && ctrl?.end_date) {
+      this.period = "custom";
+      this.customStartDate = moment(ctrl.start_date);
+      this.customEndDate = moment(ctrl.end_date);
+    } else if (ctrl?.period) {
+      this.period = ctrl.period;
+    }
+
     this.loadReports();
     this.triggerAiSummary();
   }
@@ -377,6 +388,7 @@ export default class InsightsDashboard extends Component {
     this.aiSummaryDone = false;
     this.aiAnswer = "";
     this.aiAnswerDone = false;
+    this._syncQueryParams({ period: periodId });
     try {
       this.data = await ajax("/insights/health.json", {
         data: { period: periodId },
@@ -390,10 +402,8 @@ export default class InsightsDashboard extends Component {
   }
 
   @action
-  async openCustomDateRange() {
-    const { default: CustomDateRangeModal } =
-      await import("admin/components/modal/custom-date-range");
-    this.modal.show(CustomDateRangeModal, {
+  openCustomDateRange() {
+    this.modal.show(InsightsDateRangeModal, {
       model: {
         startDate: this.customStartDate || moment().subtract(30, "days"),
         endDate: this.customEndDate || moment(),
@@ -414,12 +424,12 @@ export default class InsightsDashboard extends Component {
     this.aiSummaryDone = false;
     this.aiAnswer = "";
     this.aiAnswerDone = false;
+    const sd = moment(startDate).format("YYYY-MM-DD");
+    const ed = moment(endDate).format("YYYY-MM-DD");
+    this._syncQueryParams({ start_date: sd, end_date: ed });
     try {
       this.data = await ajax("/insights/health.json", {
-        data: {
-          start_date: moment(startDate).format("YYYY-MM-DD"),
-          end_date: moment(endDate).format("YYYY-MM-DD"),
-        },
+        data: { start_date: sd, end_date: ed },
       });
       this.triggerAiSummary();
     } catch (e) {
@@ -590,6 +600,16 @@ export default class InsightsDashboard extends Component {
     }).catch(() => {
       this.aiAnswerLoading = false;
     });
+  }
+
+  _syncQueryParams({ period, start_date, end_date } = {}) {
+    const ctrl = this.args.controller;
+    if (!ctrl) {
+      return;
+    }
+    ctrl.set("period", period || null);
+    ctrl.set("start_date", start_date || null);
+    ctrl.set("end_date", end_date || null);
   }
 
   _currentPeriodParams() {
