@@ -90,6 +90,7 @@ export default class InsightsDashboard extends Component {
   @tracked customQuestion = "";
   _aiSummaryTimer = null;
   _aiAnswerTimer = null;
+  _aiCache = new Map();
 
   constructor() {
     super(...arguments);
@@ -105,7 +106,6 @@ export default class InsightsDashboard extends Component {
     }
 
     this.loadReports();
-    this.triggerAiSummary();
   }
 
   get aiAvailable() {
@@ -512,6 +512,7 @@ export default class InsightsDashboard extends Component {
   @bind
   subscribeAi() {
     this.messageBus.subscribe("/insights/ai/stream", this._onAiStream);
+    this.triggerAiSummary();
   }
 
   @bind
@@ -523,12 +524,14 @@ export default class InsightsDashboard extends Component {
 
   @bind
   _onAiStream(update) {
+    const periodKey = this._periodCacheKey();
     if (update.type === "summary") {
       this.aiSummary = update.text;
       this.aiSummaryLoading = false;
       if (update.done) {
         this.aiSummaryDone = true;
         cancel(this._aiSummaryTimer);
+        this._aiCache.set(`summary_${periodKey}`, update.text);
       }
     } else {
       if (update.type !== this.aiAnswerType) {
@@ -539,12 +542,23 @@ export default class InsightsDashboard extends Component {
       if (update.done) {
         this.aiAnswerDone = true;
         cancel(this._aiAnswerTimer);
+        if (update.type !== "custom") {
+          this._aiCache.set(`${update.type}_${periodKey}`, update.text);
+        }
       }
     }
   }
 
   triggerAiSummary() {
     if (!this.aiAvailable) {
+      return;
+    }
+
+    const cached = this._aiCache.get(`summary_${this._periodCacheKey()}`);
+    if (cached) {
+      this.aiSummary = cached;
+      this.aiSummaryDone = true;
+      this.aiSummaryLoading = false;
       return;
     }
 
@@ -565,14 +579,35 @@ export default class InsightsDashboard extends Component {
     ajax("/insights/ai/generate.json", {
       type: "POST",
       data: { type: "summary", ...this._currentPeriodParams() },
-    }).catch(() => {
-      this.aiSummaryLoading = false;
-    });
+    })
+      .then((result) => {
+        if (result.text) {
+          this.aiSummary = result.text;
+          this.aiSummaryLoading = false;
+          this.aiSummaryDone = true;
+          cancel(this._aiSummaryTimer);
+          this._aiCache.set(`summary_${this._periodCacheKey()}`, result.text);
+        }
+      })
+      .catch(() => {
+        this.aiSummaryLoading = false;
+      });
   }
 
   triggerAiAnswer(type, question) {
     if (!this.aiAvailable) {
       return;
+    }
+
+    if (type !== "custom") {
+      const cached = this._aiCache.get(`${type}_${this._periodCacheKey()}`);
+      if (cached) {
+        this.aiAnswer = cached;
+        this.aiAnswerDone = true;
+        this.aiAnswerLoading = false;
+        this.aiAnswerType = type;
+        return;
+      }
     }
 
     this.aiAnswer = "";
@@ -598,9 +633,22 @@ export default class InsightsDashboard extends Component {
     ajax("/insights/ai/generate.json", {
       type: "POST",
       data,
-    }).catch(() => {
-      this.aiAnswerLoading = false;
-    });
+    })
+      .then((result) => {
+        if (result.text) {
+          this.aiAnswer = result.text;
+          this.aiAnswerLoading = false;
+          this.aiAnswerDone = true;
+          this.aiAnswerType = type;
+          cancel(this._aiAnswerTimer);
+          if (type !== "custom") {
+            this._aiCache.set(`${type}_${this._periodCacheKey()}`, result.text);
+          }
+        }
+      })
+      .catch(() => {
+        this.aiAnswerLoading = false;
+      });
   }
 
   _syncQueryParams({ period, start_date, end_date } = {}) {
@@ -611,6 +659,13 @@ export default class InsightsDashboard extends Component {
     ctrl.set("period", period || null);
     ctrl.set("start_date", start_date || null);
     ctrl.set("end_date", end_date || null);
+  }
+
+  _periodCacheKey() {
+    if (this.isCustomPeriod && this.customStartDate && this.customEndDate) {
+      return `${moment(this.customStartDate).format("YYYY-MM-DD")}_${moment(this.customEndDate).format("YYYY-MM-DD")}`;
+    }
+    return this.period;
   }
 
   _currentPeriodParams() {

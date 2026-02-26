@@ -19,9 +19,17 @@ module ::DiscourseInsights
         raise Discourse::InvalidParameters.new(:question) if question.blank?
       end
 
-      RateLimiter.new(current_user, "insights-ai-generate", 10, 1.minute).performed!
-
       period_opts = period_params
+
+      # return cached response inline if available
+      if type != "custom"
+        cached = Discourse.cache.read(ai_cache_key(type, period_opts))
+        if cached.present?
+          return render json: { success: true, text: cached }
+        end
+      end
+
+      RateLimiter.new(current_user, "insights-ai-generate", 10, 1.minute).performed!
 
       Jobs.enqueue(
         :stream_insights_reply,
@@ -35,6 +43,16 @@ module ::DiscourseInsights
     end
 
     private
+
+    def ai_cache_key(type, opts)
+      period_part =
+        if opts[:start_date].present?
+          "custom_#{opts[:start_date]}_#{opts[:end_date]}"
+        else
+          opts[:period]
+        end
+      "insights_ai_#{type}_#{period_part}"
+    end
 
     def period_params
       if params[:start_date].present? && params[:end_date].present?

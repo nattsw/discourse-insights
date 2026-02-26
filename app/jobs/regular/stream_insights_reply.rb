@@ -12,6 +12,15 @@ module Jobs
       question = args[:question]
       period_opts = args[:period_opts]&.symbolize_keys || { period: "30d" }
 
+      # serve cached response if available (custom questions are never cached)
+      if type != "custom"
+        cached = Discourse.cache.read(ai_cache_key(type, period_opts))
+        if cached.present?
+          publish_update(user, type, cached, done: true)
+          return
+        end
+      end
+
       persona_record = AiPersona.find_by(name: DiscourseInsights::AI_PERSONA_NAME)
       return if persona_record.blank?
 
@@ -52,10 +61,29 @@ module Jobs
         end
       end
 
+      # cache the completed response (same TTL as health data)
+      if type != "custom" && streamed_reply.present?
+        Discourse.cache.write(
+          ai_cache_key(type, period_opts),
+          streamed_reply,
+          expires_in: 35.minutes,
+        )
+      end
+
       publish_update(user, type, streamed_reply, done: true)
     end
 
     private
+
+    def ai_cache_key(type, period_opts)
+      period_part =
+        if period_opts[:start_date].present?
+          "custom_#{period_opts[:start_date]}_#{period_opts[:end_date]}"
+        else
+          period_opts[:period]
+        end
+      "insights_ai_#{type}_#{period_part}"
+    end
 
     def fetch_metrics(period_opts)
       cache_key =
@@ -75,13 +103,15 @@ module Jobs
     def build_prompt(type, question, data)
       # compact version: drop daily sparkline arrays to save tokens
       compact =
-        data.except(:ai_available).transform_values do |v|
-          next v unless v.is_a?(Hash)
-          v.transform_values do |metric|
-            next metric unless metric.is_a?(Hash) && metric.key?(:daily)
-            metric.except(:daily)
+        data
+          .except(:ai_available)
+          .transform_values do |v|
+            next v unless v.is_a?(Hash)
+            v.transform_values do |metric|
+              next metric unless metric.is_a?(Hash) && metric.key?(:daily)
+              metric.except(:daily)
+            end
           end
-        end
 
       context_json = compact.to_json
 
