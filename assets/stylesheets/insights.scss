@@ -529,8 +529,8 @@
   vertical-align: middle;
 
   &--gap {
-    background: var(--highlight-low);
-    color: var(--highlight);
+    background: var(--highlight-low-or-medium);
+    color: var(--primary-high);
   }
 }
 
