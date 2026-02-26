@@ -30,6 +30,8 @@ module ::DiscourseInsights
           .cache
           .fetch(cache_key, expires_in: 35.minutes) { DashboardData.new(**data_opts).compute }
 
+      data[:ai_available] = ai_available?
+
       render json: data
     end
 
@@ -39,6 +41,15 @@ module ::DiscourseInsights
       unless current_user.in_any_groups?(SiteSetting.insights_allowed_groups_map)
         raise Discourse::InvalidAccess
       end
+    end
+
+    def ai_available?
+      return false unless defined?(DiscourseAi)
+      return false unless SiteSetting.discourse_ai_enabled
+      persona = AiPersona.find_by(name: DiscourseInsights::AI_PERSONA_NAME)
+      return false unless persona
+      llm_id = persona.default_llm_id.presence || SiteSetting.ai_default_llm_model
+      LlmModel.exists?(id: llm_id)
     end
   end
 end

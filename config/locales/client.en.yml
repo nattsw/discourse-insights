@@ -53,6 +53,7 @@ en:
         content: "What content should I create next?"
         deflection: "How is support deflection trending?"
         stakeholder: "Summarize this for my stakeholders"
+        custom_placeholder: "Ask a question about your community..."
       answers:
         categories_healthy: "All categories are trending positively this period. No immediate attention needed."
         categories_declining: "The following categories are declining: %{names}. Consider promoting discussions or pinning engaging content in these areas."

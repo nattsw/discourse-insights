@@ -14,6 +14,7 @@ register_asset "stylesheets/insights.scss"
 
 module ::DiscourseInsights
   PLUGIN_NAME = "discourse-insights"
+  AI_PERSONA_NAME = "Insights Advisor"
 
   SEEDED_QUERIES = [
     {
@@ -184,7 +185,7 @@ after_initialize do
   end
 
   if defined?(DiscourseAi)
-    persona = AiPersona.find_or_initialize_by(name: "Insights Advisor")
+    persona = AiPersona.find_or_initialize_by(name: DiscourseInsights::AI_PERSONA_NAME)
     persona.description = I18n.t("discourse_insights.ai_persona.description")
     persona.system_prompt = <<~PROMPT
       You are an insights advisor for a Discourse community forum. You help community managers understand their community's health, spot trends, and communicate value to stakeholders.
