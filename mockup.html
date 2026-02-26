@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Community Health — Mockup</title>
+<style>
+  :root {
+    --primary: #1a1a1a;
+    --secondary: #fff;
+    --muted: #6d7175;
+    --border: #e1e3e5;
+    --bg: #f6f6f7;
+    --card-bg: #fff;
+    --radius: 12px;
+    --success: #1a8917;
+    --danger: #d72c0d;
+    --blue: #2c6ecb;
+    --blue-light: #e3f1fb;
+    --purple: #6366f1;
+    --purple-light: #f5f3ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--primary);
+    line-height: 1.5;
+  }
+
+  .page-header {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .page-header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.2px; }
+
+  .period-controls { display: flex; align-items: center; gap: 8px; }
+
+  .period-btn {
+    padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; background: var(--card-bg); color: var(--primary);
+    cursor: pointer; font-weight: 500;
+  }
+  .period-btn.active { background: var(--primary); color: var(--secondary); border-color: var(--primary); }
+
+  .compare-label {
+    font-size: 13px; color: var(--muted); padding: 6px 12px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg);
+  }
+
+  .dashboard { max-width: 1200px; margin: 0 auto; padding: 24px 40px 60px; }
+
+  /* AI Insights */
+  .ai-insights {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 20px; position: relative; overflow: hidden;
+  }
+  .ai-insights::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
+  }
+  .ai-insights-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .ai-icon {
+    width: 20px; height: 20px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 5px; display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 11px; font-weight: 700;
+  }
+  .ai-insights-header-text { font-size: 14px; font-weight: 600; }
+  .ai-insights-header-meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  .ai-summary { font-size: 15px; line-height: 1.65; color: #2d2d2d; margin-bottom: 20px; }
+  .ai-summary strong { font-weight: 600; color: var(--primary); }
+  .ai-summary .up { color: var(--success); font-weight: 600; }
+  .ai-summary .down { color: var(--danger); font-weight: 600; }
+  .ai-summary .ref {
+    color: var(--blue); text-decoration: underline; text-decoration-color: #c4dcf3;
+    text-underline-offset: 2px; cursor: pointer;
+  }
+
+  /* Inline metrics within the AI summary */
+  .inline-metrics {
+    display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap;
+  }
+  .inline-metric {
+    background: #f9fafb; border: 1px solid #eee; border-radius: 8px;
+    padding: 10px 16px; display: flex; flex-direction: column; min-width: 120px;
+    cursor: pointer; transition: all 0.15s; position: relative;
+  }
+  .inline-metric:hover { border-color: var(--blue); background: var(--blue-light); }
+  .inline-metric.active { border-color: var(--blue); background: var(--blue-light); box-shadow: 0 0 0 1px var(--blue); }
+  .inline-metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+  .inline-metric-value { font-size: 20px; font-weight: 600; line-height: 1.2; }
+  .inline-metric-trend { font-size: 12px; font-weight: 500; }
+
+  /* Expandable detail panel */
+  .detail-panel {
+    max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease,
+    margin 0.3s ease, padding 0.3s ease;
+    opacity: 0; background: #f9fafb; border-radius: 8px; margin: 0;
+  }
+  .detail-panel.open {
+    max-height: 500px; opacity: 1; margin: 12px 0; padding: 16px;
+    border: 1px solid #eee;
+  }
+  .detail-panel-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;
+  }
+  .detail-panel-title { font-size: 13px; font-weight: 600; color: var(--primary); }
+  .detail-panel-close {
+    font-size: 18px; color: var(--muted); cursor: pointer; background: none;
+    border: none; line-height: 1; padding: 0 4px;
+  }
+  .detail-panel-close:hover { color: var(--primary); }
+  .detail-sparkline { width: 100%; height: 80px; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .detail-table td { padding: 6px 0; border-bottom: 1px solid #eee; }
+  .detail-table td:last-child { text-align: right; color: var(--muted); }
+  .detail-table tr:last-child td { border-bottom: none; }
+
+  /* Question chips */
+  .ai-questions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ai-question-chip {
+    font-size: 13px; padding: 6px 14px; border: 1px solid #e0e0e0; border-radius: 20px;
+    background: #fafafa; color: #555; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .ai-question-chip:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-light); }
+
+  /* AI follow-up answer */
+  .ai-followup {
+    max-height: 0; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease;
+    opacity: 0;
+  }
+  .ai-followup.open { max-height: 400px; opacity: 1; margin-top: 16px; }
+  .ai-followup-inner {
+    background: var(--purple-light); border: 1px solid #e0d4fc; border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .ai-followup-q { font-size: 13px; font-weight: 600; color: var(--purple); margin-bottom: 8px; }
+  .ai-followup-a { font-size: 14px; line-height: 1.6; color: #333; }
+  .ai-followup-a strong { font-weight: 600; }
+
+  /* Explore sections — collapsed by default */
+  .explore-section { margin-top: 20px; }
+  .explore-toggle {
+    display: flex; align-items: center; gap: 8px; padding: 14px 20px;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    cursor: pointer; transition: all 0.15s; width: 100%; text-align: left;
+  }
+  .explore-toggle:hover { border-color: var(--blue); background: #fcfcfd; }
+  .explore-toggle-icon {
+    font-size: 16px; transition: transform 0.2s; color: var(--muted); width: 20px;
+  }
+  .explore-toggle.open .explore-toggle-icon { transform: rotate(90deg); }
+  .explore-toggle-title { font-size: 14px; font-weight: 600; flex: 1; }
+  .explore-toggle-summary { font-size: 13px; color: var(--muted); }
+
+  .explore-body {
+    max-height: 0; overflow: hidden; transition: max-height 0.35s ease;
+  }
+  .explore-body.open { max-height: 800px; }
+  .explore-body-inner { padding: 16px 0 0; display: grid; gap: 16px; }
+  .explore-body-inner.grid-2 { grid-template-columns: 1fr 1fr; }
+  .explore-body-inner.grid-1 { grid-template-columns: 1fr; }
+
+  /* Cards inside explore sections */
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; display: flex; flex-direction: column;
+  }
+  .card-title {
+    font-size: 13px; color: var(--muted); font-weight: 400; margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+
+  .rank-table { width: 100%; border-collapse: collapse; }
+  .rank-table tr { border-bottom: 1px solid #f3f3f3; }
+  .rank-table tr:last-child { border-bottom: none; }
+  .rank-table td { padding: 10px 0; font-size: 14px; vertical-align: middle; }
+  .rank-table td:nth-child(2) { text-align: right; font-weight: 500; white-space: nowrap; padding-left: 12px; }
+  .rank-table td:nth-child(3) { text-align: right; color: var(--muted); font-size: 12px; padding-left: 8px; white-space: nowrap; width: 60px; }
+
+  .rank-bar-cell { position: relative; }
+  .rank-bar-bg { position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 24px; background: var(--blue-light); border-radius: 4px; z-index: 0; }
+  .rank-bar-label { position: relative; z-index: 1; }
+  .topic-link { color: var(--blue); text-decoration: none; font-weight: 500; }
+  .topic-link:hover { text-decoration: underline; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+  .badge-gap { background: #fef3cd; color: #856404; }
+
+  .cat-table { width: 100%; border-collapse: collapse; }
+  .cat-table thead th { font-size: 12px; color: var(--muted); font-weight: 500; text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); }
+  .cat-table thead th:not(:first-child) { text-align: right; }
+  .cat-table tbody td { font-size: 14px; padding: 10px 12px 10px 0; border-bottom: 1px solid #f3f3f3; }
+  .cat-table tbody td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  .cat-table tbody tr:last-child td { border-bottom: none; }
+  .cat-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+  .watermark { text-align: center; padding: 32px; color: #bbb; font-size: 12px; }
+
+  @media (max-width: 900px) {
+    .explore-body-inner.grid-2 { grid-template-columns: 1fr; }
+    .inline-metrics { flex-direction: column; }
+    .dashboard { padding: 16px; }
+    .page-header { padding: 16px; flex-direction: column; gap: 12px; }
+    .period-controls { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Community Health</h1>
+  <div class="period-controls">
+    <button class="period-btn active">Last 7 days</button>
+    <button class="period-btn">Last 30 days</button>
+    <button class="period-btn">Last 12 weeks</button>
+    <button class="period-btn">Last 12 months</button>
+    <span class="compare-label">Compare to: Feb 11–17, 2026</span>
+  </div>
+</div>
+
+<div class="dashboard">
+
+  <!-- AI Insights — the primary interface -->
+  <div class="ai-insights">
+    <div class="ai-insights-header">
+      <div class="ai-icon">✦</div>
+      <div class="ai-insights-header-text">Community Insights</div>
+      <div class="ai-insights-header-meta">Updated 25 min ago</div>
+    </div>
+
+    <div class="ai-summary">
+      Your community is <span class="up">growing steadily</span> — visitor traffic is up 12% and sign-ups have nearly doubled compared to last week. A <span class="ref">Reddit thread in r/webdev</span> drove a 3x spike in referral traffic, mostly landing on your <span class="ref">Storage API guide</span> which is now your top-performing content.
+    </div>
+
+    <!-- Inline clickable metrics -->
+    <div class="inline-metrics">
+      <div class="inline-metric" data-panel="visitors-detail">
+        <div class="inline-metric-label">Visitors</div>
+        <div class="inline-metric-value">2,491</div>
+        <div class="inline-metric-trend up" style="color:var(--success)">↑ 12%</div>
+      </div>
+      <div class="inline-metric" data-panel="pageviews-detail">
+        <div class="inline-metric-label">Page Views</div>
+        <div class="inline-metric-value">12,340</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 8%</div>
+      </div>
+      <div class="inline-metric" data-panel="members-detail">
+        <div class="inline-metric-label">New Members</div>
+        <div class="inline-metric-value">56</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 60%</div>
+      </div>
+      <div class="inline-metric" data-panel="contributors-detail">
+        <div class="inline-metric-label">Contributors</div>
+        <div class="inline-metric-value">184</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 5%</div>
+      </div>
+      <div class="inline-metric" data-panel="posts-detail">
+        <div class="inline-metric-label">Posts</div>
+        <div class="inline-metric-value">342</div>
+        <div class="inline-metric-trend flat" style="color:var(--muted)">— flat</div>
+      </div>
+      <div class="inline-metric" data-panel="likes-detail">
+        <div class="inline-metric-label">Likes</div>
+        <div class="inline-metric-value">584</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 3%</div>
+      </div>
+      <div class="inline-metric" data-panel="solved-detail">
+        <div class="inline-metric-label">Solved</div>
+        <div class="inline-metric-value">89</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 14%</div>
+      </div>
+      <div class="inline-metric" data-panel="response-detail">
+        <div class="inline-metric-label">Response Rate</div>
+        <div class="inline-metric-value">94%</div>
+        <div class="inline-metric-trend" style="color:var(--success)">↑ 2pts</div>
+      </div>
+    </div>
+
+    <!-- Expandable detail panels (one at a time) -->
+    <div class="detail-panel" id="visitors-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Visitors — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <svg class="detail-sparkline" viewBox="0 0 400 80" preserveAspectRatio="none">
+        <path d="M0,80 L0,55 L57,42 L114,32 L171,38 L228,20 L285,12 L342,22 L400,18 L400,80 Z" fill="#2c6ecb" opacity="0.08"/>
+        <path d="M0,55 L57,42 L114,32 L171,38 L228,20 L285,12 L342,22 L400,18" fill="none" stroke="#2c6ecb" stroke-width="2"/>
+        <path d="M0,60 L57,56 L114,52 L171,58 L228,48 L285,44 L342,50 L400,52" fill="none" stroke="#999" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+      </svg>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">
+        Solid = current period · Dashed = previous period · Peak: Friday (462 visitors)
+      </div>
+    </div>
+
+    <div class="detail-panel" id="pageviews-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Page Views — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <svg class="detail-sparkline" viewBox="0 0 400 80" preserveAspectRatio="none">
+        <path d="M0,80 L0,48 L57,34 L114,26 L171,38 L228,14 L285,8 L342,28 L400,22 L400,80 Z" fill="#2c6ecb" opacity="0.08"/>
+        <path d="M0,48 L57,34 L114,26 L171,38 L228,14 L285,8 L342,28 L400,22" fill="none" stroke="#2c6ecb" stroke-width="2"/>
+        <path d="M0,52 L57,44 L114,38 L171,48 L228,34 L285,30 L342,40 L400,42" fill="none" stroke="#999" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+      </svg>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">
+        Avg 1,763/day · 5.0 pages per visitor · Peak: Friday (2,340 views)
+      </div>
+    </div>
+
+    <div class="detail-panel" id="members-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">New Members — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="display:flex;gap:24px;margin-bottom:12px">
+        <div><span style="font-size:20px;font-weight:600">56</span> <span style="font-size:13px;color:var(--muted)">this week</span></div>
+        <div><span style="font-size:20px;font-weight:600">35</span> <span style="font-size:13px;color:var(--muted)">last week</span></div>
+        <div><span style="font-size:20px;font-weight:600">8/day</span> <span style="font-size:13px;color:var(--muted)">avg vs 5/day</span></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">
+        60% increase in registrations. Largest single-day: Saturday (14 sign-ups), likely driven by the Reddit referral spike.
+      </div>
+    </div>
+
+    <div class="detail-panel" id="contributors-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Active Contributors — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.6">
+        <strong>184</strong> unique users created at least one post or reply. That's <strong>7.4%</strong> of your monthly active users — healthy for a community this size.<br><br>
+        <strong>DAU:</strong> 342 · <strong>WAU:</strong> 1,247 · <strong>MAU:</strong> 4,012 · <strong>DAU/MAU:</strong> 8.5% <span style="color:var(--success)">↑ 0.4pts</span>
+      </div>
+    </div>
+
+    <div class="detail-panel" id="posts-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Posts Created — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.6">
+        <strong>342 posts</strong> (48 new topics + 294 replies). Post volume is flat compared to last week — consistent output despite the traffic growth, which suggests new visitors are reading but not yet contributing.
+      </div>
+    </div>
+
+    <div class="detail-panel" id="likes-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Likes Given — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.6">
+        <strong>584 likes</strong> across 342 posts — a like-to-post ratio of 1.7, up slightly from 1.6 last week. Users are finding content valuable.
+      </div>
+    </div>
+
+    <div class="detail-panel" id="solved-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Solved Topics — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.6">
+        <strong>89 topics solved</strong> by the community — that's 68% of all support topics. At an estimated <strong>$15/ticket</strong>, your community deflected roughly <strong>$1,335 in support costs</strong> this week.
+      </div>
+    </div>
+
+    <div class="detail-panel" id="response-detail">
+      <div class="detail-panel-header">
+        <div class="detail-panel-title">Response Rate — Last 7 days</div>
+        <button class="detail-panel-close" onclick="closePanel()">&times;</button>
+      </div>
+      <div style="font-size:13px;color:#333;line-height:1.6">
+        <strong>94%</strong> of topics received at least one reply. Average first response time: <strong>2.4 hours</strong> (down from 3.1h last week). 8 topics still unanswered after 24h.
+      </div>
+    </div>
+
+    <!-- Second paragraph of insights -->
+    <div class="ai-summary" style="margin-top:16px">
+      One area to watch: <strong>General Discussion</strong> engagement is <span class="down">declining for the third consecutive week</span> (↓5% replies, ↓12% unique contributors). Meanwhile, users are repeatedly searching for <strong>"dark mode"</strong> and <strong>"pricing"</strong> but not finding results — these look like content gaps worth addressing.
+    </div>
+
+    <!-- Question chips -->
+    <div class="ai-questions">
+      <div class="ai-question-chip" data-answer="traffic-answer">Why did traffic spike on Thursday?</div>
+      <div class="ai-question-chip" data-answer="categories-answer">Which categories need attention?</div>
+      <div class="ai-question-chip" data-answer="content-answer">What content should I create next?</div>
+      <div class="ai-question-chip" data-answer="deflection-answer">How is support deflection trending?</div>
+      <div class="ai-question-chip" data-answer="stakeholder-answer">Summarize this for my stakeholders</div>
+    </div>
+
+    <!-- AI follow-up answers (hidden by default) -->
+    <div class="ai-followup" id="traffic-answer">
+      <div class="ai-followup-inner">
+        <div class="ai-followup-q">Why did traffic spike on Thursday?</div>
+        <div class="ai-followup-a">
+          Thursday's traffic was <strong>2.3x your daily average</strong>, driven almost entirely by a post on <strong>r/webdev</strong> titled "Best community-driven API docs I've seen" which linked to your <strong>Storage API guide</strong>. It received 340 clicks from Reddit alone. The spike brought 82 first-time visitors, 14 of whom created accounts. Traffic from this source is tapering but still above baseline.
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-followup" id="categories-answer">
+      <div class="ai-followup-inner">
+        <div class="ai-followup-q">Which categories need attention?</div>
+        <div class="ai-followup-a">
+          <strong>General Discussion</strong> is your weakest category right now — replies are down 5%, unique contributors dropped 12%, and it's been declining for 3 consecutive weeks. Consider pinning a discussion prompt or highlighting recent topics.<br><br>
+          <strong>Feature Requests</strong> is surging (+20%) but has the lowest response rate from staff (23%). Users may feel unheard. <strong>Bug Reports</strong> is healthy with strong community participation.
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-followup" id="content-answer">
+      <div class="ai-followup-inner">
+        <div class="ai-followup-q">What content should I create next?</div>
+        <div class="ai-followup-a">
+          Based on search data, your biggest content gaps are:<br><br>
+          <strong>1. "dark mode"</strong> — 45 searches, only 12% CTR. Users are looking for this and not finding it. A guide or FAQ would likely perform well.<br>
+          <strong>2. "pricing"</strong> — 22 searches, 8% CTR. This suggests users can't find pricing information easily.<br>
+          <strong>3. "export data"</strong> — 15 searches, 33% CTR. Partial content exists but could be improved.<br><br>
+          Your <strong>Storage API guide</strong> and <strong>Webhook best practices</strong> are performing well — more content in that style (practical how-to guides) resonates with your audience.
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-followup" id="deflection-answer">
+      <div class="ai-followup-inner">
+        <div class="ai-followup-q">How is support deflection trending?</div>
+        <div class="ai-followup-a">
+          Support deflection is <strong>trending up</strong>. This week: 89 topics solved by the community (68% solve rate, up from 61% last month). Average first-response time improved to 2.4h from 3.1h.<br><br>
+          At an estimated $15/ticket, your community deflected roughly <strong>$1,335 this week</strong> or <strong>$5,700/month</strong> at current pace. The top community responders are <strong>Dev_Guru</strong> (42 posts), <strong>ReactFan</strong> (38), and <strong>NoobMaster</strong> (25).
+        </div>
+      </div>
+    </div>
+
+    <div class="ai-followup" id="stakeholder-answer">
+      <div class="ai-followup-inner">
+        <div class="ai-followup-q">Summarize this for my stakeholders</div>
+        <div class="ai-followup-a">
+          <strong>Community Health Report — Week of Feb 18–24, 2026</strong><br><br>
+          The community had a strong week with <strong>2,491 visitors (+12%)</strong>, <strong>56 new members (+60%)</strong>, and sustained engagement at <strong>342 posts</strong>. A viral Reddit post drove significant organic discovery.<br><br>
+          <strong>Support impact:</strong> 89 topics were resolved by the community with a 94% response rate and 2.4h avg response time, translating to an estimated <strong>$5,700/month in support deflection</strong>.<br><br>
+          <strong>Action items:</strong> Address content gaps around "dark mode" and "pricing" search terms. Investigate declining engagement in General Discussion. Consider recognizing top community contributors.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Explore sections — collapsed, expandable -->
+  <div class="explore-section">
+    <button class="explore-toggle" onclick="toggleExplore(this)">
+      <span class="explore-toggle-icon">›</span>
+      <span class="explore-toggle-title">Content Performance</span>
+      <span class="explore-toggle-summary">Top topics, search terms, traffic sources</span>
+    </button>
+    <div class="explore-body">
+      <div class="explore-body-inner grid-2">
+        <div class="card">
+          <div class="card-title">Top Topics</div>
+          <table class="rank-table">
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:100%"></div><span class="rank-bar-label"><a class="topic-link" href="#">Getting Started with the Storage API</a></span></td><td>1.2k</td><td><span style="color:var(--success)">↑ 3x</span></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:82%"></div><span class="rank-bar-label"><a class="topic-link" href="#">Why is CSP rejecting my script?</a></span></td><td>982</td><td></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:71%"></div><span class="rank-bar-label"><a class="topic-link" href="#">Feature Request: Dark Mode</a></span></td><td>856</td><td></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:55%"></div><span class="rank-bar-label"><a class="topic-link" href="#">Webhook integration best practices</a></span></td><td>654</td><td><span style="color:var(--success)">↑ 2x</span></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:37%"></div><span class="rank-bar-label"><a class="topic-link" href="#">How to customize email templates</a></span></td><td>445</td><td></td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">Top Search Terms</div>
+          <table class="rank-table">
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:100%"></div><span class="rank-bar-label">dark mode <span class="badge badge-gap">content gap</span></span></td><td>45</td><td>12% CTR</td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:84%"></div><span class="rank-bar-label">api documentation</span></td><td>38</td><td>45% CTR</td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:49%"></div><span class="rank-bar-label">pricing <span class="badge badge-gap">content gap</span></span></td><td>22</td><td>8% CTR</td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:40%"></div><span class="rank-bar-label">webhook setup</span></td><td>18</td><td>52% CTR</td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:33%"></div><span class="rank-bar-label">export data</span></td><td>15</td><td>33% CTR</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explore-section">
+    <button class="explore-toggle" onclick="toggleExplore(this)">
+      <span class="explore-toggle-icon">›</span>
+      <span class="explore-toggle-title">Traffic Sources</span>
+      <span class="explore-toggle-summary">Where visitors are coming from</span>
+    </button>
+    <div class="explore-body">
+      <div class="explore-body-inner grid-1">
+        <div class="card">
+          <table class="rank-table">
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:100%"></div><span class="rank-bar-label">reddit.com</span></td><td>340</td><td><span style="color:var(--success)">↑ 3x</span></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:62%"></div><span class="rank-bar-label">twitter.com</span></td><td>210</td><td></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:53%"></div><span class="rank-bar-label">google.com</span></td><td>180</td><td></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:28%"></div><span class="rank-bar-label">news.ycombinator.com</span></td><td>95</td><td><span style="color:var(--success)">↑ new</span></td></tr>
+            <tr><td class="rank-bar-cell"><div class="rank-bar-bg" style="width:18%"></div><span class="rank-bar-label">linkedin.com</span></td><td>62</td><td></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="explore-section">
+    <button class="explore-toggle" onclick="toggleExplore(this)">
+      <span class="explore-toggle-icon">›</span>
+      <span class="explore-toggle-title">Engagement by Category</span>
+      <span class="explore-toggle-summary">Category-level health breakdown</span>
+    </button>
+    <div class="explore-body">
+      <div class="explore-body-inner grid-1">
+        <div class="card">
+          <table class="cat-table">
+            <thead><tr><th>Category</th><th>Page Views</th><th>New Topics</th><th>Replies</th><th>Trend</th></tr></thead>
+            <tbody>
+              <tr><td><span class="cat-dot" style="background:#25AAE2"></span>Feature Requests</td><td>3,420</td><td>28</td><td>142</td><td><span style="color:var(--success);font-size:12px;font-weight:500">↑ 20%</span></td></tr>
+              <tr><td><span class="cat-dot" style="background:#12A89D"></span>Bug Reports</td><td>2,890</td><td>45</td><td>198</td><td><span style="color:var(--success);font-size:12px;font-weight:500">↑ 8%</span></td></tr>
+              <tr><td><span class="cat-dot" style="background:#E45735"></span>General Discussion</td><td>2,210</td><td>12</td><td>89</td><td><span style="color:var(--danger);font-size:12px;font-weight:500">↓ 5%</span></td></tr>
+              <tr><td><span class="cat-dot" style="background:#92278F"></span>How-To Guides</td><td>1,850</td><td>8</td><td>34</td><td><span style="color:var(--success);font-size:12px;font-weight:500">↑ 15%</span></td></tr>
+              <tr><td><span class="cat-dot" style="background:#F7941D"></span>Announcements</td><td>1,120</td><td>3</td><td>56</td><td><span style="color:var(--muted);font-size:12px;font-weight:500">— flat</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="watermark">Static mockup — click metrics and questions to interact</div>
+
+<script>
+  // Inline metric click → expand detail panel
+  document.querySelectorAll('.inline-metric').forEach(metric => {
+    metric.addEventListener('click', () => {
+      const panelId = metric.dataset.panel;
+      const panel = document.getElementById(panelId);
+      const wasOpen = panel.classList.contains('open');
+
+      // close all panels and deactivate all metrics
+      document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('open'));
+      document.querySelectorAll('.inline-metric').forEach(m => m.classList.remove('active'));
+
+      if (!wasOpen) {
+        panel.classList.add('open');
+        metric.classList.add('active');
+      }
+    });
+  });
+
+  function closePanel() {
+    document.querySelectorAll('.detail-panel').forEach(p => p.classList.remove('open'));
+    document.querySelectorAll('.inline-metric').forEach(m => m.classList.remove('active'));
+  }
+
+  // Question chip click → show AI answer
+  document.querySelectorAll('.ai-question-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const answerId = chip.dataset.answer;
+      const answer = document.getElementById(answerId);
+      const wasOpen = answer.classList.contains('open');
+
+      // close all answers
+      document.querySelectorAll('.ai-followup').forEach(a => a.classList.remove('open'));
+
+      if (!wasOpen) {
+        answer.classList.add('open');
+        answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+
+  // Explore section toggle
+  function toggleExplore(btn) {
+    const body = btn.nextElementSibling;
+    btn.classList.toggle('open');
+    body.classList.toggle('open');
+  }
+</script>
+
+</body>
+</html>

@@ -1,4 +1,34 @@
-TODO_plugin_name:
-  plugin_name_enabled:
+discourse_insights:
+  insights_enabled:
     default: false
     client: true
+  insights_allowed_groups:
+    type: group_list
+    list_type: compact
+    default: "1|2"
+    allow_any: false
+    refresh: true
+  insights_activity_weight:
+    default: 20
+    min: 0
+    max: 100
+  insights_growth_weight:
+    default: 20
+    min: 0
+    max: 100
+  insights_engagement_weight:
+    default: 25
+    min: 0
+    max: 100
+  insights_content_weight:
+    default: 20
+    min: 0
+    max: 100
+  insights_responsiveness_weight:
+    default: 15
+    min: 0
+    max: 100
+  insights_unanswered_threshold_hours:
+    default: 24
+    min: 1
+    max: 168

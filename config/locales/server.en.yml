@@ -1,1 +1,14 @@
 en:
+  discourse_insights:
+    ai_persona:
+      name: "Insights Advisor"
+      description: "Synthesizes community health metrics into actionable insights for community managers and stakeholders."
+  site_settings:
+    insights_enabled: "Enable the Insights page."
+    insights_allowed_groups: "Groups allowed to view the Insights page."
+    insights_activity_weight: "Weight for the Activity dimension in the health score."
+    insights_growth_weight: "Weight for the Growth dimension in the health score."
+    insights_engagement_weight: "Weight for the Engagement dimension in the health score."
+    insights_content_weight: "Weight for the Content dimension in the health score."
+    insights_responsiveness_weight: "Weight for the Responsiveness dimension in the health score."
+    insights_unanswered_threshold_hours: "Hours before a topic is considered unanswered in attention alerts."

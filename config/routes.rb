@@ -1,8 +1,15 @@
 # frozen_string_literal: true
 
-MyPluginModule::Engine.routes.draw do
-  get "/examples" => "examples#index"
-  # define routes here
+DiscourseInsights::Engine.routes.draw do
+  get "/health" => "health#show"
+  get "/reports" => "reports#index"
+  get "/reports/available" => "reports#available"
+  get "/reports/:id/run" => "reports#run"
+  post "/reports" => "reports#add"
+  delete "/reports/:id" => "reports#remove"
 end
 
-Discourse::Application.routes.draw { mount ::MyPluginModule::Engine, at: "my-plugin" }
+Discourse::Application.routes.draw do
+  get "insights" => "discourse_insights/page#index"
+  mount ::DiscourseInsights::Engine, at: "insights"
+end

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-module ::MyPluginModule
+module ::DiscourseInsights
   class Engine < ::Rails::Engine
     engine_name PLUGIN_NAME
-    isolate_namespace MyPluginModule
+    isolate_namespace DiscourseInsights
     config.autoload_paths << File.join(config.root, "lib")
     scheduled_job_dir = "#{config.root}/app/jobs/scheduled"
     config.to_prepare do

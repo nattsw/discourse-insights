@@ -1,0 +1,947 @@
+import Component from "@glimmer/component";
+import { tracked } from "@glimmer/tracking";
+import { fn } from "@ember/helper";
+import { on } from "@ember/modifier";
+import { action } from "@ember/object";
+import { service } from "@ember/service";
+import { htmlSafe } from "@ember/template";
+import DButton from "discourse/components/d-button";
+import number from "discourse/helpers/number";
+import { ajax } from "discourse/lib/ajax";
+import { popupAjaxError } from "discourse/lib/ajax-error";
+import getURL from "discourse/lib/get-url";
+import { eq } from "discourse/truth-helpers";
+import { i18n } from "discourse-i18n";
+import AddReportModal from "./add-report-modal";
+import InsightsReportChart from "./insights-report-chart";
+
+const METRIC_KEYS = [
+  "visitors",
+  "page_views",
+  "new_members",
+  "contributors",
+  "posts",
+  "likes",
+  "solved",
+  "response_rate",
+];
+
+function formatTrendText(pct, isPercentage) {
+  if (isPercentage) {
+    if (pct > 0) {
+      return `↑ ${pct}pts`;
+    }
+    if (pct < 0) {
+      return `↓ ${Math.abs(pct)}pts`;
+    }
+    return "— flat";
+  }
+  if (pct > 0) {
+    return `↑ ${pct}%`;
+  }
+  if (pct < 0) {
+    return `↓ ${Math.abs(pct)}%`;
+  }
+  return "— flat";
+}
+
+function trendCssClass(pct) {
+  if (pct > 2) {
+    return "insights-trend--up";
+  }
+  if (pct < -2) {
+    return "insights-trend--down";
+  }
+  return "insights-trend--flat";
+}
+
+export default class InsightsDashboard extends Component {
+  @service modal;
+
+  @tracked period = "30d";
+  @tracked customStartDate = null;
+  @tracked customEndDate = null;
+  @tracked data = null;
+  @tracked loading = false;
+  @tracked expandedMetric = null;
+  @tracked expandedQuestion = null;
+  @tracked expandedSections = {};
+  @tracked reports = null;
+  @tracked reportsLoading = true;
+
+  constructor() {
+    super(...arguments);
+    this.data = this.args.initialData;
+    this.loadReports();
+  }
+
+  get periodOptions() {
+    return [
+      { id: "7d", label: i18n("discourse_insights.periods.7d") },
+      { id: "30d", label: i18n("discourse_insights.periods.30d") },
+      { id: "3m", label: i18n("discourse_insights.periods.3m") },
+    ];
+  }
+
+  get isCustomPeriod() {
+    return this.period === "custom";
+  }
+
+  get customDateLabel() {
+    if (!this.data?.period) {
+      return "";
+    }
+    const start = moment(this.data.period.start_date);
+    const end = moment(this.data.period.end_date);
+    return `${start.format("MMM D")}–${end.format("MMM D, YYYY")}`;
+  }
+
+  get comparisonLabel() {
+    if (!this.data?.period) {
+      return "";
+    }
+    const start = moment(this.data.period.comparison_start);
+    const end = moment(this.data.period.comparison_end);
+    return `${start.format("MMM D")}–${end.format("MMM D, YYYY")}`;
+  }
+
+  get metrics() {
+    if (!this.data?.metrics) {
+      return [];
+    }
+    return METRIC_KEYS.map((key) => {
+      const m = this.data.metrics[key];
+      if (!m || (key === "solved" && m.available === false)) {
+        return null;
+      }
+      return {
+        key,
+        label: i18n(`discourse_insights.metrics.${key}`),
+        current: m.current,
+        isPercentage: !!m.is_percentage,
+        trendText: formatTrendText(m.trend_pct, m.is_percentage),
+        trendClass: trendCssClass(m.trend_pct),
+      };
+    }).filter(Boolean);
+  }
+
+  get isGrowing() {
+    return (this.data?.metrics?.visitors?.trend_pct ?? 0) > 5;
+  }
+
+  get isDeclining() {
+    return (this.data?.metrics?.visitors?.trend_pct ?? 0) < -5;
+  }
+
+  get absVisitorsTrend() {
+    return Math.abs(this.data?.metrics?.visitors?.trend_pct ?? 0);
+  }
+
+  get membersCount() {
+    return this.data?.metrics?.new_members?.current ?? 0;
+  }
+
+  get membersTrend() {
+    return this.data?.metrics?.new_members?.trend_pct ?? 0;
+  }
+
+  get visitorsCount() {
+    return this.data?.metrics?.visitors?.current ?? 0;
+  }
+
+  get topReferrer() {
+    return this.data?.traffic_sources?.[0] ?? null;
+  }
+
+  get topTopic() {
+    return this.data?.top_topics?.[0] ?? null;
+  }
+
+  get decliningCategories() {
+    return (this.data?.categories ?? []).filter((c) => c.trend_pct < -3);
+  }
+
+  get contentGaps() {
+    return (this.data?.search_terms ?? []).filter((s) => s.content_gap);
+  }
+
+  get decliningCategoryNames() {
+    return this.decliningCategories.map((c) => c.name).join(", ");
+  }
+
+  get contentGapTerms() {
+    return this.contentGaps.map((g) => `"${g.term}"`).join(", ");
+  }
+
+  get expandedMetricData() {
+    if (!this.expandedMetric || !this.data?.metrics) {
+      return null;
+    }
+    return this.data.metrics[this.expandedMetric];
+  }
+
+  get expandedMetricTitle() {
+    if (!this.expandedMetric) {
+      return "";
+    }
+    return i18n(`discourse_insights.metrics.${this.expandedMetric}`);
+  }
+
+  get sparklinePath() {
+    const daily = this.expandedMetricData?.daily;
+    if (!daily?.length) {
+      return null;
+    }
+    const values = daily.map((d) => d.value);
+    const max = Math.max(...values, 1);
+    const w = 300;
+    const h = 60;
+    const pad = 2;
+    const stepX = values.length > 1 ? w / (values.length - 1) : 0;
+
+    const points = values.map((v, i) => {
+      const x = i * stepX;
+      const y = pad + (h - 2 * pad) * (1 - v / max);
+      return `${x},${y}`;
+    });
+
+    return htmlSafe(
+      `M${points.join(" L")}`
+    );
+  }
+
+  get sparklineFillPath() {
+    const daily = this.expandedMetricData?.daily;
+    if (!daily?.length) {
+      return null;
+    }
+    const values = daily.map((d) => d.value);
+    const max = Math.max(...values, 1);
+    const w = 300;
+    const h = 60;
+    const pad = 2;
+    const stepX = values.length > 1 ? w / (values.length - 1) : 0;
+
+    const points = values.map((v, i) => {
+      const x = i * stepX;
+      const y = pad + (h - 2 * pad) * (1 - v / max);
+      return `${x},${y}`;
+    });
+
+    return htmlSafe(
+      `M0,${h} L${points.join(" L")} L${w},${h} Z`
+    );
+  }
+
+  get topTopicsForDisplay() {
+    return (this.data?.top_topics ?? []).map((topic) => ({
+      ...topic,
+      url: getURL(`/t/-/${topic.topic_id}`),
+    }));
+  }
+
+  get categoriesForDisplay() {
+    return (this.data?.categories ?? []).map((cat) => ({
+      ...cat,
+      dotStyle: htmlSafe(`background-color: #${cat.color}`),
+      trendText: formatTrendText(cat.trend_pct, false),
+      trendClass: trendCssClass(cat.trend_pct),
+    }));
+  }
+
+  get questions() {
+    return [
+      {
+        key: "categories",
+        label: i18n("discourse_insights.questions.categories"),
+      },
+      {
+        key: "content",
+        label: i18n("discourse_insights.questions.content"),
+      },
+      {
+        key: "deflection",
+        label: i18n("discourse_insights.questions.deflection"),
+      },
+      {
+        key: "stakeholder",
+        label: i18n("discourse_insights.questions.stakeholder"),
+      },
+    ];
+  }
+
+  get questionAnswer() {
+    if (!this.expandedQuestion || !this.data) {
+      return null;
+    }
+
+    switch (this.expandedQuestion) {
+      case "categories": {
+        const declining = this.decliningCategories;
+        if (declining.length === 0) {
+          return i18n("discourse_insights.answers.categories_healthy");
+        }
+        return i18n("discourse_insights.answers.categories_declining", {
+          names: this.decliningCategoryNames,
+        });
+      }
+      case "content": {
+        const gaps = this.contentGaps;
+        if (gaps.length === 0) {
+          return i18n("discourse_insights.answers.content_no_gaps");
+        }
+        return i18n("discourse_insights.answers.content_gaps", {
+          terms: this.contentGapTerms,
+        });
+      }
+      case "deflection": {
+        const solved = this.data.metrics?.solved;
+        if (!solved || solved.available === false) {
+          return i18n("discourse_insights.answers.deflection_unavailable");
+        }
+        return i18n("discourse_insights.answers.deflection", {
+          solved: solved.current,
+          solve_rate: solved.solve_rate ?? 0,
+          response_rate: this.data.metrics?.response_rate?.current ?? 0,
+          avg_hours:
+            this.data.metrics?.response_rate?.avg_first_response_hours ?? 0,
+        });
+      }
+      case "stakeholder":
+        return i18n("discourse_insights.answers.stakeholder", {
+          visitors: this.data.metrics?.visitors?.current ?? 0,
+          visitors_trend: this.data.metrics?.visitors?.trend_pct ?? 0,
+          members: this.data.metrics?.new_members?.current ?? 0,
+          members_trend: this.data.metrics?.new_members?.trend_pct ?? 0,
+          posts: this.data.metrics?.posts?.current ?? 0,
+          response_rate: this.data.metrics?.response_rate?.current ?? 0,
+        });
+      default:
+        return null;
+    }
+  }
+
+  get isContentExpanded() {
+    return !!this.expandedSections.content;
+  }
+
+  get isTrafficExpanded() {
+    return !!this.expandedSections.traffic;
+  }
+
+  get isCategoriesExpanded() {
+    return !!this.expandedSections.categories;
+  }
+
+  get isReportsExpanded() {
+    return !!this.expandedSections.reports;
+  }
+
+  @action
+  async changePeriod(periodId) {
+    if (this.period === periodId && !this.isCustomPeriod) {
+      return;
+    }
+    this.period = periodId;
+    this.customStartDate = null;
+    this.customEndDate = null;
+    this.loading = true;
+    this.expandedMetric = null;
+    this.expandedQuestion = null;
+    try {
+      this.data = await ajax("/insights/health.json", {
+        data: { period: periodId },
+      });
+    } catch (e) {
+      popupAjaxError(e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  @action
+  async openCustomDateRange() {
+    const { default: CustomDateRangeModal } =
+      await import("admin/components/modal/custom-date-range");
+    this.modal.show(CustomDateRangeModal, {
+      model: {
+        startDate: this.customStartDate || moment().subtract(30, "days"),
+        endDate: this.customEndDate || moment(),
+        setCustomDateRange: this.setCustomDateRange,
+      },
+    });
+  }
+
+  @action
+  async setCustomDateRange(startDate, endDate) {
+    this.period = "custom";
+    this.customStartDate = startDate;
+    this.customEndDate = endDate;
+    this.loading = true;
+    this.expandedMetric = null;
+    this.expandedQuestion = null;
+    try {
+      this.data = await ajax("/insights/health.json", {
+        data: {
+          start_date: moment(startDate).format("YYYY-MM-DD"),
+          end_date: moment(endDate).format("YYYY-MM-DD"),
+        },
+      });
+    } catch (e) {
+      popupAjaxError(e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  @action
+  async refresh() {
+    this.loading = true;
+    this.expandedMetric = null;
+    this.expandedQuestion = null;
+    try {
+      const data = { force: true };
+      if (this.isCustomPeriod && this.customStartDate && this.customEndDate) {
+        data.start_date = moment(this.customStartDate).format("YYYY-MM-DD");
+        data.end_date = moment(this.customEndDate).format("YYYY-MM-DD");
+      } else {
+        data.period = this.period;
+      }
+      this.data = await ajax("/insights/health.json", { data });
+    } catch (e) {
+      popupAjaxError(e);
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  @action
+  toggleMetric(key) {
+    this.expandedMetric = this.expandedMetric === key ? null : key;
+  }
+
+  @action
+  closeMetric() {
+    this.expandedMetric = null;
+  }
+
+  @action
+  toggleQuestion(key) {
+    this.expandedQuestion = this.expandedQuestion === key ? null : key;
+  }
+
+  @action
+  toggleExplore(key) {
+    this.expandedSections = {
+      ...this.expandedSections,
+      [key]: !this.expandedSections[key],
+    };
+  }
+
+  async loadReports() {
+    try {
+      const result = await ajax("/insights/reports.json");
+      this.reports = result.reports;
+    } catch {
+      this.reports = [];
+    } finally {
+      this.reportsLoading = false;
+    }
+  }
+
+  @action
+  openAddReport() {
+    this.modal.show(AddReportModal, {
+      model: {
+        onAdd: this.onReportAdded,
+      },
+    });
+  }
+
+  @action
+  async onReportAdded() {
+    this.reportsLoading = true;
+    await this.loadReports();
+  }
+
+  @action
+  async removeReport(reportId) {
+    try {
+      await ajax(`/insights/reports/${reportId}.json`, { type: "DELETE" });
+      this.reports = this.reports.filter((r) => r.id !== reportId);
+    } catch (e) {
+      popupAjaxError(e);
+    }
+  }
+
+  <template>
+    <div class="insights">
+      <div class="insights-header">
+        <h2 class="insights-header__title">{{i18n
+            "discourse_insights.title"
+          }}</h2>
+        <div class="insights-header__controls">
+          {{#each this.periodOptions as |opt|}}
+            <DButton
+              class={{if
+                (eq this.period opt.id)
+                "btn-primary insights-period-btn"
+                "btn-default insights-period-btn"
+              }}
+              @action={{fn this.changePeriod opt.id}}
+              @translatedLabel={{opt.label}}
+            />
+          {{/each}}
+          <DButton
+            class={{if
+              this.isCustomPeriod
+              "btn-primary insights-period-btn"
+              "btn-default insights-period-btn"
+            }}
+            @action={{this.openCustomDateRange}}
+            @icon="calendar-days"
+            @translatedLabel={{if
+              this.isCustomPeriod
+              this.customDateLabel
+              (i18n "discourse_insights.periods.custom")
+            }}
+          />
+          <DButton
+            class="btn-default btn-small btn-icon no-text insights-refresh-btn"
+            @action={{this.refresh}}
+            @icon="arrows-rotate"
+            @title="discourse_insights.refresh_tooltip"
+            @disabled={{this.loading}}
+          />
+        </div>
+      </div>
+
+      {{#if this.loading}}
+        <div class="insights-loading">
+          <div class="spinner medium"></div>
+        </div>
+      {{else if this.data.error}}
+        <div class="insights-error">
+          {{i18n "discourse_insights.error"}}
+        </div>
+      {{else}}
+        <div class="insights-summary">
+          <div class="insights-summary__header">
+            <span class="insights-summary__icon">✦</span>
+            <span class="insights-summary__title">{{i18n
+                "discourse_insights.insights.title"
+              }}</span>
+          </div>
+
+          <p class="insights-summary__narrative">
+            {{#if this.isGrowing}}
+              {{i18n
+                "discourse_insights.insights.growing"
+                visitors_trend=this.absVisitorsTrend
+                members_count=this.membersCount
+                members_trend=this.membersTrend
+              }}
+            {{else if this.isDeclining}}
+              {{i18n
+                "discourse_insights.insights.declining"
+                visitors_trend=this.absVisitorsTrend
+              }}
+            {{else}}
+              {{i18n
+                "discourse_insights.insights.steady"
+                visitors=this.visitorsCount
+                members_count=this.membersCount
+              }}
+            {{/if}}
+            {{#if this.topReferrer}}
+
+              {{i18n
+                "discourse_insights.insights.top_referrer"
+                domain=this.topReferrer.domain
+                clicks=this.topReferrer.clicks
+              }}
+            {{/if}}
+            {{#if this.topTopic}}
+
+              {{i18n
+                "discourse_insights.insights.top_topic"
+                title=this.topTopic.title
+                views=this.topTopic.views
+              }}
+            {{/if}}
+          </p>
+
+          <div class="insights-metrics">
+            {{#each this.metrics as |metric|}}
+              <button
+                type="button"
+                class="insights-metric
+                  {{if
+                    (eq this.expandedMetric metric.key)
+                    'insights-metric--active'
+                  }}"
+                {{on "click" (fn this.toggleMetric metric.key)}}
+              >
+                <span class="insights-metric__label">{{metric.label}}</span>
+                <span class="insights-metric__value">
+                  {{#if metric.isPercentage}}
+                    {{metric.current}}%
+                  {{else}}
+                    {{number metric.current}}
+                  {{/if}}
+                </span>
+                <span
+                  class="insights-metric__trend {{metric.trendClass}}"
+                >{{metric.trendText}}</span>
+              </button>
+            {{/each}}
+            {{#if this.comparisonLabel}}
+              <span class="insights-metrics__compare">{{i18n
+                  "discourse_insights.compare_to"
+                  dates=this.comparisonLabel
+                }}</span>
+            {{/if}}
+          </div>
+
+          {{#if this.expandedMetricData}}
+            <div class="insights-detail-panel">
+              <div class="insights-detail-panel__header">
+                <span
+                  class="insights-detail-panel__title"
+                >{{this.expandedMetricTitle}}</span>
+                <DButton
+                  class="btn-transparent insights-detail-panel__close"
+                  @action={{this.closeMetric}}
+                  @icon="xmark"
+                />
+              </div>
+              <div class="insights-detail-panel__body">
+                {{#if this.sparklinePath}}
+                  <svg
+                    class="insights-sparkline"
+                    viewBox="0 0 300 60"
+                    preserveAspectRatio="none"
+                  >
+                    <path
+                      class="insights-sparkline__fill"
+                      d={{this.sparklineFillPath}}
+                    />
+                    <path
+                      class="insights-sparkline__line"
+                      d={{this.sparklinePath}}
+                    />
+                  </svg>
+                {{/if}}
+
+                <div class="insights-detail-panel__stats">
+                  <span class="insights-detail-panel__stat">
+                    {{i18n "discourse_insights.detail.current"}}
+                    <strong>{{number this.expandedMetricData.current}}</strong>
+                  </span>
+                  <span class="insights-detail-panel__stat">
+                    {{i18n "discourse_insights.detail.previous"}}
+                    <strong>{{number this.expandedMetricData.previous}}</strong>
+                  </span>
+                  {{#if this.expandedMetricData.avg_per_day}}
+                    <span class="insights-detail-panel__stat">
+                      {{i18n "discourse_insights.detail.avg_per_day"}}
+                      <strong>{{number
+                          this.expandedMetricData.avg_per_day
+                        }}</strong>
+                    </span>
+                  {{/if}}
+                  {{#if this.expandedMetricData.like_to_post_ratio}}
+                    <span class="insights-detail-panel__stat">
+                      {{i18n "discourse_insights.detail.like_ratio"}}
+                      <strong
+                      >{{this.expandedMetricData.like_to_post_ratio}}</strong>
+                    </span>
+                  {{/if}}
+                  {{#if this.expandedMetricData.avg_first_response_hours}}
+                    <span class="insights-detail-panel__stat">
+                      {{i18n "discourse_insights.detail.avg_response_time"}}
+                      <strong
+                      >{{this.expandedMetricData.avg_first_response_hours}}h</strong>
+                    </span>
+                  {{/if}}
+                  {{#if this.expandedMetricData.unanswered_count}}
+                    <span class="insights-detail-panel__stat">
+                      {{i18n "discourse_insights.detail.unanswered"}}
+                      <strong
+                      >{{this.expandedMetricData.unanswered_count}}</strong>
+                    </span>
+                  {{/if}}
+                  {{#if this.expandedMetricData.solve_rate}}
+                    <span class="insights-detail-panel__stat">
+                      {{i18n "discourse_insights.detail.solve_rate"}}
+                      <strong>{{this.expandedMetricData.solve_rate}}%</strong>
+                    </span>
+                  {{/if}}
+                </div>
+
+                {{#if (eq this.expandedMetric "contributors")}}
+                  <div class="insights-detail-panel__extra">
+                    <span>{{i18n "discourse_insights.detail.dau"}}
+                      {{this.data.dau_wau_mau.dau}}</span>
+                    <span>{{i18n "discourse_insights.detail.wau"}}
+                      {{this.data.dau_wau_mau.wau}}</span>
+                    <span>{{i18n "discourse_insights.detail.mau"}}
+                      {{this.data.dau_wau_mau.mau}}</span>
+                    <span>{{i18n "discourse_insights.detail.dau_mau"}}
+                      {{this.data.dau_wau_mau.dau_mau_ratio}}%</span>
+                  </div>
+                {{/if}}
+
+                {{#if (eq this.expandedMetric "posts")}}
+                  <div class="insights-detail-panel__extra">
+                    <span>{{i18n "discourse_insights.detail.new_topics"}}:
+                      {{this.data.posts_breakdown.topics}}</span>
+                    <span>{{i18n "discourse_insights.detail.replies"}}:
+                      {{this.data.posts_breakdown.replies}}</span>
+                  </div>
+                {{/if}}
+              </div>
+            </div>
+          {{/if}}
+
+          <div class="insights-questions">
+            {{#each this.questions as |q|}}
+              <button
+                type="button"
+                class="insights-question-chip
+                  {{if
+                    (eq this.expandedQuestion q.key)
+                    'insights-question-chip--active'
+                  }}"
+                {{on "click" (fn this.toggleQuestion q.key)}}
+              >
+                {{q.label}}
+              </button>
+            {{/each}}
+          </div>
+
+          {{#if this.questionAnswer}}
+            <div class="insights-answer">
+              <div class="insights-answer__text">{{this.questionAnswer}}</div>
+            </div>
+          {{/if}}
+        </div>
+
+        {{! My Reports }}
+        {{#unless this.reportsLoading}}
+          {{#if this.reports.length}}
+            <div class="insights-explore">
+              <button
+                type="button"
+                class="insights-explore__toggle
+                  {{if this.isReportsExpanded 'insights-explore__toggle--open'}}"
+                aria-expanded={{if this.isReportsExpanded "true" "false"}}
+                {{on "click" (fn this.toggleExplore "reports")}}
+              >
+                <span class="insights-explore__icon">›</span>
+                <span class="insights-explore__title">{{i18n
+                    "discourse_insights.reports.title"
+                  }}</span>
+                <span class="insights-explore__summary">{{i18n
+                    "discourse_insights.reports.summary"
+                  }}</span>
+              </button>
+              {{#if this.isReportsExpanded}}
+                <div
+                  class="insights-explore__body insights-explore__body--reports"
+                >
+                  {{#each this.reports as |report|}}
+                    <InsightsReportChart
+                      @report={{report}}
+                      @startDate={{this.data.period.start_date}}
+                      @endDate={{this.data.period.end_date}}
+                      @onRemove={{this.removeReport}}
+                    />
+                  {{/each}}
+                  <button
+                    type="button"
+                    class="insights-add-report-btn"
+                    {{on "click" this.openAddReport}}
+                  >
+                    + {{i18n "discourse_insights.reports.add_report"}}
+                  </button>
+                </div>
+              {{/if}}
+            </div>
+          {{/if}}
+        {{/unless}}
+
+        {{! Explore: Content Performance }}
+        <div class="insights-explore">
+          <button
+            type="button"
+            class="insights-explore__toggle
+              {{if this.isContentExpanded 'insights-explore__toggle--open'}}"
+            aria-expanded={{if this.isContentExpanded "true" "false"}}
+            {{on "click" (fn this.toggleExplore "content")}}
+          >
+            <span class="insights-explore__icon">›</span>
+            <span class="insights-explore__title">{{i18n
+                "discourse_insights.explore.content"
+              }}</span>
+            <span class="insights-explore__summary">{{i18n
+                "discourse_insights.explore.content_summary"
+              }}</span>
+          </button>
+          {{#if this.isContentExpanded}}
+            <div class="insights-explore__body insights-explore__body--grid-2">
+              <div class="insights-card">
+                <div class="insights-card__title">{{i18n
+                    "discourse_insights.explore.top_topics"
+                  }}</div>
+                <table class="insights-rank-table">
+                  <tbody>
+                    {{#each this.topTopicsForDisplay as |topic|}}
+                      <tr>
+                        <td class="insights-rank-table__name">
+                          <a
+                            href={{topic.url}}
+                            class="insights-topic-link"
+                          >{{topic.title}}</a>
+                        </td>
+                        <td class="insights-rank-table__value">{{number
+                            topic.views
+                          }}</td>
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+              <div class="insights-card">
+                <div class="insights-card__title">{{i18n
+                    "discourse_insights.explore.search_terms"
+                  }}</div>
+                <table class="insights-rank-table">
+                  <tbody>
+                    {{#each this.data.search_terms as |term|}}
+                      <tr>
+                        <td class="insights-rank-table__name">
+                          {{term.term}}
+                          {{#if term.content_gap}}
+                            <span
+                              class="insights-badge insights-badge--gap"
+                            >{{i18n
+                                "discourse_insights.explore.content_gap_badge"
+                              }}</span>
+                          {{/if}}
+                        </td>
+                        <td
+                          class="insights-rank-table__value"
+                        >{{term.count}}</td>
+                        <td class="insights-rank-table__meta">{{i18n
+                            "discourse_insights.explore.ctr"
+                            value=term.ctr
+                          }}</td>
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {{/if}}
+        </div>
+
+        {{! Explore: Traffic Sources }}
+        <div class="insights-explore">
+          <button
+            type="button"
+            class="insights-explore__toggle
+              {{if this.isTrafficExpanded 'insights-explore__toggle--open'}}"
+            aria-expanded={{if this.isTrafficExpanded "true" "false"}}
+            {{on "click" (fn this.toggleExplore "traffic")}}
+          >
+            <span class="insights-explore__icon">›</span>
+            <span class="insights-explore__title">{{i18n
+                "discourse_insights.explore.traffic"
+              }}</span>
+            <span class="insights-explore__summary">{{i18n
+                "discourse_insights.explore.traffic_summary"
+              }}</span>
+          </button>
+          {{#if this.isTrafficExpanded}}
+            <div class="insights-explore__body">
+              <div class="insights-card">
+                <table class="insights-rank-table">
+                  <tbody>
+                    {{#each this.data.traffic_sources as |source|}}
+                      <tr>
+                        <td
+                          class="insights-rank-table__name"
+                        >{{source.domain}}</td>
+                        <td class="insights-rank-table__value">{{number
+                            source.clicks
+                          }}</td>
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {{/if}}
+        </div>
+
+        {{! Explore: Categories }}
+        <div class="insights-explore">
+          <button
+            type="button"
+            class="insights-explore__toggle
+              {{if this.isCategoriesExpanded 'insights-explore__toggle--open'}}"
+            aria-expanded={{if this.isCategoriesExpanded "true" "false"}}
+            {{on "click" (fn this.toggleExplore "categories")}}
+          >
+            <span class="insights-explore__icon">›</span>
+            <span class="insights-explore__title">{{i18n
+                "discourse_insights.explore.categories"
+              }}</span>
+            <span class="insights-explore__summary">{{i18n
+                "discourse_insights.explore.categories_summary"
+              }}</span>
+          </button>
+          {{#if this.isCategoriesExpanded}}
+            <div class="insights-explore__body">
+              <div class="insights-card">
+                <table class="insights-cat-table">
+                  <thead>
+                    <tr>
+                      <th>{{i18n "discourse_insights.explore.category"}}</th>
+                      <th>{{i18n "discourse_insights.explore.page_views"}}</th>
+                      <th>{{i18n "discourse_insights.explore.new_topics"}}</th>
+                      <th>{{i18n "discourse_insights.explore.replies"}}</th>
+                      <th>{{i18n "discourse_insights.explore.trend"}}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {{#each this.categoriesForDisplay as |cat|}}
+                      <tr>
+                        <td>
+                          <span
+                            class="insights-cat-dot"
+                            style={{cat.dotStyle}}
+                          ></span>
+                          {{cat.name}}
+                        </td>
+                        <td>{{number cat.page_views}}</td>
+                        <td>{{cat.new_topics}}</td>
+                        <td>{{cat.replies}}</td>
+                        <td>
+                          <span
+                            class={{cat.trendClass}}
+                          >{{cat.trendText}}</span>
+                        </td>
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {{/if}}
+        </div>
+      {{/if}}
+    </div>
+  </template>
+}
