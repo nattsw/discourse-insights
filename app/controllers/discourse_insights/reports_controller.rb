@@ -66,7 +66,7 @@ module ::DiscourseInsights
         )
 
       if result[:error]
-        render json: { error: result[:error].message }, status: 422
+        render json: { error: result[:error].message }, status: :unprocessable_entity
         return
       end
 
@@ -82,7 +82,7 @@ module ::DiscourseInsights
       raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
 
       ids = user_report_ids
-      unless ids.include?(query_id)
+      if ids.exclude?(query_id)
         ids << query_id
         save_user_report_ids(ids)
       end

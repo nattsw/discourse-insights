@@ -12,7 +12,7 @@ module ::DiscourseInsights
 
     def generate
       type = params[:type]
-      raise Discourse::InvalidParameters.new(:type) unless ALLOWED_TYPES.include?(type)
+      raise Discourse::InvalidParameters.new(:type) if ALLOWED_TYPES.exclude?(type)
 
       if type == "custom"
         question = params[:question]&.strip
@@ -24,9 +24,7 @@ module ::DiscourseInsights
       # return cached response inline if available
       if type != "custom"
         cached = Discourse.cache.read(ai_cache_key(type, period_opts))
-        if cached.present?
-          return render json: { success: true, text: cached }
-        end
+        return render json: { success: true, text: cached } if cached.present?
       end
 
       RateLimiter.new(current_user, "insights-ai-generate", 10, 1.minute).performed!

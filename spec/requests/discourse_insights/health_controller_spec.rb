@@ -67,20 +67,12 @@ describe DiscourseInsights::HealthController do
       end
 
       it "returns 400 for date range exceeding 365 days" do
-        get "/insights/health.json",
-            params: {
-              start_date: "2024-01-01",
-              end_date: "2025-12-31",
-            }
+        get "/insights/health.json", params: { start_date: "2024-01-01", end_date: "2025-12-31" }
         expect(response.status).to eq(400)
       end
 
       it "normalizes date cache keys to prevent cache pollution" do
-        get "/insights/health.json",
-            params: {
-              start_date: "2026-01-01",
-              end_date: "2026-01-31",
-            }
+        get "/insights/health.json", params: { start_date: "2026-01-01", end_date: "2026-01-31" }
         expect(response.status).to eq(200)
       end
     end

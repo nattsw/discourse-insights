@@ -178,7 +178,7 @@ task "dev:simulate_activity" => :environment do
     if tag_ids.any?
       tag_rows = []
       new_topic_ids.each do |tid|
-        next unless rand < 0.4
+        next if rand >= 0.4
         tag_ids.sample(rand(1..3)).each do |tag_id|
           tag_rows << { topic_id: tid, tag_id: tag_id }
         end

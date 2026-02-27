@@ -202,8 +202,7 @@ describe DiscourseInsights::ReportsController do
     it "caches separately per date params" do
       query =
         create_de_query(
-          sql:
-            "-- [params]\n-- date :start_date = 2025-01-01\nSELECT :start_date::date AS d",
+          sql: "-- [params]\n-- date :start_date = 2025-01-01\nSELECT :start_date::date AS d",
         )
 
       get "/insights/reports/#{query.id}/run.json", params: { start_date: "2026-01-01" }

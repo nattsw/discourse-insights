@@ -47,12 +47,10 @@ module ::DiscourseInsights
       total_weight = weights.values.sum.to_f
       total_weight = 1.0 if total_weight == 0
 
-      overall =
-        scores.sum { |key, score| score * weights[key] } / total_weight
+      overall = scores.sum { |key, score| score * weights[key] } / total_weight
       overall = overall.round
 
-      dimensions =
-        scores.transform_values { |score| { score: score, label: score_label(score) } }
+      dimensions = scores.transform_values { |score| { score: score, label: score_label(score) } }
 
       { overall: overall, label: score_label(overall), dimensions: dimensions }
     end
@@ -61,8 +59,7 @@ module ::DiscourseInsights
     def compute_activity_score
       period_days = [(@end_date - @start_date).to_i + 1, 1].max
 
-      mau =
-        UserVisit.where(visited_at: @start_date..@end_date).distinct.count(:user_id)
+      mau = UserVisit.where(visited_at: @start_date..@end_date).distinct.count(:user_id)
       return 0 if mau == 0
 
       daily_counts =
@@ -129,8 +126,7 @@ module ::DiscourseInsights
 
     # inverse of median time to first response
     def compute_responsiveness_score
-      hours =
-        DB.query_single(<<~SQL, start_date: @start_date, end_date: @end_date.end_of_day).first
+      hours = DB.query_single(<<~SQL, start_date: @start_date, end_date: @end_date.end_of_day).first
         SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (
           ORDER BY EXTRACT(EPOCH FROM (p.created_at - t.created_at)) / 3600
         ) AS median_hours
@@ -165,8 +161,7 @@ module ::DiscourseInsights
         (anon_pageviews / PAGES_PER_SESSION_ESTIMATE) +
           UserVisit.where(visited_at: @start_date..@end_date).distinct.count(:user_id)
 
-      logged_in =
-        UserVisit.where(visited_at: @start_date..@end_date).distinct.count(:user_id)
+      logged_in = UserVisit.where(visited_at: @start_date..@end_date).distinct.count(:user_id)
 
       readers =
         UserVisit
@@ -276,22 +271,15 @@ module ::DiscourseInsights
         .where(read_restricted: false)
         .where.not(id: active_category_ids)
         .where("topic_count > 0")
-        .find_each do |cat|
-          items << { type: "inactive_category", category: cat.name }
-        end
+        .find_each { |cat| items << { type: "inactive_category", category: cat.name } }
 
       current_reply_rate = compute_content_score
-      prior_calc =
-        self.class.new(start_date: @prior_start, end_date: @prior_end)
+      prior_calc = self.class.new(start_date: @prior_start, end_date: @prior_end)
       prior_reply_rate = prior_calc.send(:compute_content_score)
       if prior_reply_rate > 0
         change = current_reply_rate - prior_reply_rate
         if change < -5
-          items << {
-            type: "declining_metric",
-            metric: "reply_rate",
-            change_pct: change.round(1),
-          }
+          items << { type: "declining_metric", metric: "reply_rate", change_pct: change.round(1) }
         end
       end
 
@@ -301,7 +289,7 @@ module ::DiscourseInsights
     # --- top content ---
 
     def compute_top_content
-      DB.query(<<~SQL, start_date: @start_date, end_date: @end_date)
+      DB.query(<<~SQL, start_date: @start_date, end_date: @end_date).map { |row| row.to_h }
         SELECT
           t.id AS topic_id,
           t.title,
@@ -324,14 +312,12 @@ module ::DiscourseInsights
         ORDER BY (COALESCE(tvs.views, 0) + GREATEST(t.posts_count - 1, 0) * 10 + t.like_count * 5) DESC
         LIMIT 10
       SQL
-        .map { |row| row.to_h }
     end
 
     # --- category health ---
 
     def compute_category_health
-      rows =
-        DB.query(<<~SQL, start_date: @start_date, end_date: @end_date.end_of_day)
+      rows = DB.query(<<~SQL, start_date: @start_date, end_date: @end_date.end_of_day)
         SELECT
           c.id AS category_id,
           c.name,
@@ -359,12 +345,14 @@ module ::DiscourseInsights
       SQL
 
       rows.map do |row|
-        reply_rate = row.topic_count > 0 ? (row.replied_count.to_f / row.topic_count * 100).round : 0
+        reply_rate =
+          row.topic_count > 0 ? (row.replied_count.to_f / row.topic_count * 100).round : 0
         resp_hours = row.avg_response_hours&.round(1) || 0
 
         activity_score = normalize_score(row.topic_count, 1, 50)
         reply_score = normalize_score(reply_rate, 30, 90)
-        resp_score = row.avg_response_hours ? inverse_normalize_score(row.avg_response_hours, 1, 24) : 50
+        resp_score =
+          row.avg_response_hours ? inverse_normalize_score(row.avg_response_hours, 1, 24) : 50
 
         health = ((activity_score * 0.3) + (reply_score * 0.4) + (resp_score * 0.3)).round
 

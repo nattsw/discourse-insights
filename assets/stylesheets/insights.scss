@@ -325,7 +325,9 @@
     background: var(--primary-very-low);
     color: var(--primary);
     outline: none;
-    transition: background-color 0.15s, box-shadow 0.15s;
+    transition:
+      background-color 0.15s,
+      box-shadow 0.15s;
 
     &::placeholder {
       color: var(--primary-low-mid);

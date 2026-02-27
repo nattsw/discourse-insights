@@ -243,9 +243,7 @@ export default class InsightsDashboard extends Component {
       return `${x},${y}`;
     });
 
-    return htmlSafe(
-      `M${points.join(" L")}`
-    );
+    return htmlSafe(`M${points.join(" L")}`);
   }
 
   get sparklineFillPath() {
@@ -266,9 +264,7 @@ export default class InsightsDashboard extends Component {
       return `${x},${y}`;
     });
 
-    return htmlSafe(
-      `M0,${h} L${points.join(" L")} L${w},${h} Z`
-    );
+    return htmlSafe(`M0,${h} L${points.join(" L")} L${w},${h} Z`);
   }
 
   get topTopicsForDisplay() {
@@ -1024,7 +1020,10 @@ export default class InsightsDashboard extends Component {
               <button
                 type="button"
                 class="insights-explore__toggle
-                  {{if this.isReportsExpanded 'insights-explore__toggle--open'}}"
+                  {{if
+                    this.isReportsExpanded
+                    'insights-explore__toggle--open'
+                  }}"
                 aria-expanded={{if this.isReportsExpanded "true" "false"}}
                 {{on "click" (fn this.toggleExplore "reports")}}
               >
@@ -1058,7 +1057,8 @@ export default class InsightsDashboard extends Component {
                     class="insights-add-report-btn"
                     {{on "click" this.openAddReport}}
                   >
-                    + {{i18n "discourse_insights.reports.add_report"}}
+                    +
+                    {{i18n "discourse_insights.reports.add_report"}}
                   </button>
                 </div>
               {{/if}}

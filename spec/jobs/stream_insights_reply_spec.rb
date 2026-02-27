@@ -47,7 +47,13 @@ describe Jobs::StreamInsightsReply do
 
   it "returns early if user not found" do
     expect {
-      described_class.new.execute(user_id: -999, type: "summary", period_opts: { "period" => "30d" })
+      described_class.new.execute(
+        user_id: -999,
+        type: "summary",
+        period_opts: {
+          "period" => "30d",
+        },
+      )
     }.not_to raise_error
   end
 

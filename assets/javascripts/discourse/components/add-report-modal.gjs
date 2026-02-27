@@ -70,7 +70,12 @@ export default class AddReportModal extends Component {
               <li class="add-report-modal__item">
                 <div class="add-report-modal__info">
                   <span class="add-report-modal__name">
-                    {{#if query.insights}}<span class="insights-sparkle-badge" title={{i18n "discourse_insights.reports.insights_query_tooltip"}}>✦</span>{{/if}}
+                    {{#if query.insights}}<span
+                        class="insights-sparkle-badge"
+                        title={{i18n
+                          "discourse_insights.reports.insights_query_tooltip"
+                        }}
+                      >✦</span>{{/if}}
                     {{query.name}}
                   </span>
                   {{#if query.description}}

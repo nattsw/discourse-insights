@@ -143,7 +143,10 @@ export default class InsightsReportChart extends Component {
     <div class="insights-report-chart">
       <div class="insights-report-chart__header">
         <div class="insights-report-chart__title-wrap">
-          {{#if @report.insights}}<span class="insights-sparkle-badge" title={{i18n "discourse_insights.reports.insights_query_tooltip"}}>✦</span>{{/if}}
+          {{#if @report.insights}}<span
+              class="insights-sparkle-badge"
+              title={{i18n "discourse_insights.reports.insights_query_tooltip"}}
+            >✦</span>{{/if}}
           <a
             href={{this.queryUrl}}
             class="insights-report-chart__title"

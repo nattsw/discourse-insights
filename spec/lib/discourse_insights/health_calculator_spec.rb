@@ -39,9 +39,7 @@ describe DiscourseInsights::HealthCalculator do
     end
 
     it "scores content higher when more topics have replies" do
-      3.times do
-        Fabricate(:topic, category: category, created_at: 5.days.ago, posts_count: 3)
-      end
+      3.times { Fabricate(:topic, category: category, created_at: 5.days.ago, posts_count: 3) }
       Fabricate(:topic, category: category, created_at: 5.days.ago, posts_count: 1)
 
       result = calculator.compute[:health_score]
@@ -96,13 +94,7 @@ describe DiscourseInsights::HealthCalculator do
 
   describe "attention items" do
     it "detects unanswered topics" do
-      Fabricate(
-        :topic,
-        category: category,
-        created_at: 2.days.ago,
-        posts_count: 1,
-        visible: true,
-      )
+      Fabricate(:topic, category: category, created_at: 2.days.ago, posts_count: 1, visible: true)
 
       result = calculator.compute[:attention_items]
       unanswered = result.select { |i| i[:type] == "unanswered_topics" }
@@ -137,8 +129,7 @@ describe DiscourseInsights::HealthCalculator do
 
   describe "category health" do
     it "returns per-category health scores" do
-      topic =
-        Fabricate(:topic, category: category, created_at: 5.days.ago, posts_count: 2)
+      topic = Fabricate(:topic, category: category, created_at: 5.days.ago, posts_count: 2)
       Fabricate(:post, topic: topic, post_number: 2, created_at: 5.days.ago + 1.hour)
 
       result = calculator.compute[:category_health]
