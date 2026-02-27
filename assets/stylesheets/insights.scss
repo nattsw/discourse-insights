@@ -835,6 +835,50 @@
     padding: 0.5em 0;
   }
 
+  &__param-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    background: var(--primary-very-low);
+    border: 1px solid var(--primary-low);
+    border-radius: 0.5em;
+    padding: 0.15em 0.5em;
+    font-size: var(--font-down-2);
+  }
+
+  &__param-label {
+    color: var(--primary-medium);
+    white-space: nowrap;
+  }
+
+  &__param-input,
+  &__param-input[type="date"],
+  &__param-input[type="number"],
+  &__param-input[type="text"] {
+    border: 1px solid var(--primary-low);
+    border-radius: 4px;
+    padding: 0.15em 0.3em;
+    background: var(--secondary);
+    color: var(--primary);
+    max-width: 10em;
+    margin: 0;
+    line-height: normal;
+    height: auto;
+  }
+
+  &__param-input[type="date"] {
+    max-width: 9em;
+  }
+
+  &__param-input[type="number"] {
+    max-width: 6em;
+  }
+
+  &__param-input[type="checkbox"] {
+    max-width: unset;
+    height: auto;
+  }
+
   &__param-chip {
     display: inline-block;
     font-size: var(--font-down-2);
@@ -844,6 +888,10 @@
     border-radius: 3px;
     color: var(--primary-medium);
     font-variant-numeric: tabular-nums;
+  }
+
+  &__run-btn {
+    margin-left: auto;
   }
 
   &__table-scroll {
@@ -897,7 +945,7 @@
   border: 2px dashed var(--primary-low);
   border-radius: var(--d-border-radius);
   padding: 1em;
-  min-height: 200px;
+  min-height: 120px;
   cursor: pointer;
   color: var(--primary-medium);
   font-size: var(--font-0);

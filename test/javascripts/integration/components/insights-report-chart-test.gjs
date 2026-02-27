@@ -1,4 +1,4 @@
-import { click, render } from "@ember/test-helpers";
+import { click, fillIn, render } from "@ember/test-helpers";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
 import pretender, { response } from "discourse/tests/helpers/create-pretender";
@@ -153,7 +153,7 @@ module(
         .doesNotExist("table hidden after second toggle");
     });
 
-    test("displays param chips when params are present", async function (assert) {
+    test("displays editable inputs for date params", async function (assert) {
       mockRun(6, {
         columns: ["d1", "d2"],
         rows: [["2026-01-01", "2026-02-01"]],
@@ -168,18 +168,27 @@ module(
         <template><InsightsReportChart @report={{report}} /></template>
       );
 
+      assert
+        .dom(".insights-report-chart__params")
+        .doesNotExist("params hidden before expanding");
+
       await click(".insights-report-chart__toggle-btn");
 
-      const chips = document.querySelectorAll(".insights-report-chart__param-chip");
-      assert.strictEqual(chips.length, 2, "renders 2 param chips");
-      assert.true(
-        chips[0].textContent.includes("start_date"),
-        "first chip shows start_date"
-      );
-      assert.true(
-        chips[0].textContent.includes("2026-01-01"),
-        "first chip shows value"
-      );
+      assert
+        .dom(".insights-report-chart__params")
+        .exists("params section visible after expanding");
+
+      const inputs = document.querySelectorAll(".insights-report-chart__param-input[type='date']");
+      assert.strictEqual(inputs.length, 2, "renders 2 date inputs");
+      assert.strictEqual(inputs[0].value, "2026-01-01", "first input has correct value");
+      assert.strictEqual(inputs[1].value, "2026-02-01", "second input has correct value");
+
+      const labels = document.querySelectorAll(".insights-report-chart__param-label");
+      assert.true(labels[0].textContent.includes("start_date"), "first label shows start_date");
+
+      assert
+        .dom(".insights-report-chart__run-btn")
+        .exists("run button is present");
     });
 
     test("does not display params section when no params", async function (assert) {
@@ -193,8 +202,6 @@ module(
       await render(
         <template><InsightsReportChart @report={{report}} /></template>
       );
-
-      await click(".insights-report-chart__toggle-btn");
 
       assert
         .dom(".insights-report-chart__params")
@@ -307,6 +314,160 @@ module(
       assert
         .dom(".insights-sparkle-badge")
         .exists("sparkle badge rendered");
+    });
+
+    test("editable date params render as inputs", async function (assert) {
+      mockRun(13, {
+        columns: ["week", "count"],
+        rows: [["2025-01-06", 10]],
+        params: [
+          { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+          { identifier: "end_date", type: "date", default: "2025-12-31", value: "2025-12-31" },
+        ],
+      });
+
+      const report = { id: 13, name: "Date Params", insights: false };
+      await render(
+        <template><InsightsReportChart @report={{report}} /></template>
+      );
+
+      await click(".insights-report-chart__toggle-btn");
+
+      assert
+        .dom(".insights-report-chart__params")
+        .exists("params section renders");
+      assert
+        .dom(".insights-report-chart__param-input[type='date']")
+        .exists({ count: 2 }, "renders 2 date inputs");
+      assert
+        .dom(".insights-report-chart__param-input[type='date']")
+        .hasValue("2025-01-01");
+      assert
+        .dom(".insights-report-chart__run-btn")
+        .exists("run button renders");
+    });
+
+    test("re-run button re-fetches with new params", async function (assert) {
+      let callCount = 0;
+      pretender.get("/insights/reports/14/run.json", (request) => {
+        callCount++;
+        if (callCount === 1) {
+          return response({
+            columns: ["week", "count"],
+            rows: [["2025-01-06", 10]],
+            params: [
+              { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+            ],
+          });
+        }
+        return response({
+          columns: ["week", "count"],
+          rows: [
+            ["2025-06-01", 50],
+            ["2025-06-08", 60],
+          ],
+          params: [
+            { identifier: "start_date", type: "date", default: "2025-01-01", value: request.queryParams.start_date },
+          ],
+        });
+      });
+
+      const report = { id: 14, name: "Re-run Test", insights: false };
+      await render(
+        <template><InsightsReportChart @report={{report}} /></template>
+      );
+
+      assert.strictEqual(callCount, 1, "initial fetch happened");
+
+      await click(".insights-report-chart__toggle-btn");
+      await fillIn(".insights-report-chart__param-input[type='date']", "2025-06-01");
+      await click(".insights-report-chart__run-btn");
+
+      assert.strictEqual(callCount, 2, "re-run triggered second fetch");
+
+      assert
+        .dom(".insights-report-chart__table tbody tr:nth-child(1) td:nth-child(1)")
+        .hasText("2025-06-01", "table updated with new data");
+    });
+
+    test("non-editable params render as read-only chips", async function (assert) {
+      mockRun(15, {
+        columns: ["name", "count"],
+        rows: [["Alice", 42]],
+        params: [
+          { identifier: "user_id", type: "user_id", default: "1", value: "1" },
+          { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+        ],
+      });
+
+      const report = { id: 15, name: "Mixed Params", insights: false };
+      await render(
+        <template><InsightsReportChart @report={{report}} /></template>
+      );
+
+      await click(".insights-report-chart__toggle-btn");
+
+      assert
+        .dom(".insights-report-chart__param-chip")
+        .exists({ count: 1 }, "one read-only chip for user_id");
+      assert
+        .dom(".insights-report-chart__param-chip")
+        .hasText("user_id: 1");
+      assert
+        .dom(".insights-report-chart__param-input[type='date']")
+        .exists({ count: 1 }, "one editable date input");
+    });
+
+    test("run button is disabled during re-run", async function (assert) {
+      let resolveSecondCall;
+      let callCount = 0;
+
+      pretender.get("/insights/reports/16/run.json", () => {
+        callCount++;
+        if (callCount === 1) {
+          return response({
+            columns: ["week", "count"],
+            rows: [["2025-01-06", 10]],
+            params: [
+              { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+            ],
+          });
+        }
+        return new Promise((resolve) => {
+          resolveSecondCall = resolve;
+        });
+      });
+
+      const report = { id: 16, name: "Disabled Test", insights: false };
+      await render(
+        <template><InsightsReportChart @report={{report}} /></template>
+      );
+
+      await click(".insights-report-chart__toggle-btn");
+
+      const clickPromise = click(".insights-report-chart__run-btn");
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      assert
+        .dom(".insights-report-chart__run-btn")
+        .isDisabled("run button disabled during fetch");
+
+      resolveSecondCall(
+        response({
+          columns: ["week", "count"],
+          rows: [["2025-01-06", 10]],
+          params: [
+            { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+          ],
+        })
+      );
+
+      await clickPromise;
+
+      assert
+        .dom(".insights-report-chart__run-btn")
+        .isNotDisabled("run button re-enabled after fetch");
     });
   }
 );

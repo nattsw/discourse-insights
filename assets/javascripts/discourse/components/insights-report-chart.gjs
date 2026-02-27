@@ -1,10 +1,12 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
+import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
-import icon from "discourse/helpers/d-icon";
+import { eq } from "discourse/truth-helpers";
 import DButton from "discourse/components/d-button";
+import icon from "discourse/helpers/d-icon";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
 import loadChartJS from "discourse/lib/load-chart-js";
@@ -47,7 +49,10 @@ export default class InsightsReportChart extends Component {
   @tracked rows = null;
   @tracked queryParams = null;
   @tracked showTable = false;
+  @tracked rerunning = false;
+  @tracked editableParams = new Map();
   chart = null;
+  _canvas = null;
 
   constructor() {
     super(...arguments);
@@ -75,6 +80,9 @@ export default class InsightsReportChart extends Component {
       this.columns = result.columns;
       this.rows = result.rows;
       this.queryParams = result.params || [];
+      this.editableParams = new Map(
+        this.queryParams.map((p) => [p.identifier, p.value ?? p.default])
+      );
       this.error = false;
     } catch {
       this.error = true;
@@ -238,6 +246,7 @@ export default class InsightsReportChart extends Component {
 
   @action
   async initChart(canvas) {
+    this._canvas = canvas;
     if (!this.rows?.length || this.numericColumnIndices.length === 0) {
       return;
     }
@@ -259,14 +268,96 @@ export default class InsightsReportChart extends Component {
     return this.queryParams?.length > 0;
   }
 
-  get resolvedParams() {
+  get editableParamFields() {
     if (!this.queryParams) {
       return [];
     }
+    const editableTypes = ["date", "int", "bigint", "double", "string", "boolean"];
     return this.queryParams.map((p) => ({
       identifier: p.identifier,
-      value: p.value ?? p.default,
+      type: p.type,
+      value: this.editableParams.get(p.identifier) ?? p.value ?? p.default,
+      editable: editableTypes.includes(p.type),
+      inputType: this._inputTypeFor(p.type),
+      inputStep: this._inputStepFor(p.type),
+      isCheckbox: p.type === "boolean",
     }));
+  }
+
+  _inputTypeFor(paramType) {
+    switch (paramType) {
+      case "date":
+        return "date";
+      case "int":
+      case "bigint":
+      case "double":
+        return "number";
+      case "boolean":
+        return "checkbox";
+      default:
+        return "text";
+    }
+  }
+
+  _inputStepFor(paramType) {
+    if (paramType === "double") {
+      return "any";
+    }
+    if (paramType === "int" || paramType === "bigint") {
+      return "1";
+    }
+    return undefined;
+  }
+
+  @action
+  updateParam(identifier, event) {
+    const val =
+      event.target.type === "checkbox"
+        ? String(event.target.checked)
+        : event.target.value;
+    this.editableParams = new Map(this.editableParams);
+    this.editableParams.set(identifier, val);
+  }
+
+  @action
+  async rerun() {
+    this.rerunning = true;
+    try {
+      const data = {};
+      for (const [key, val] of this.editableParams) {
+        if (val !== null && val !== undefined && val !== "") {
+          data[key] = val;
+        }
+      }
+      const result = await ajax(
+        `/insights/reports/${this.args.report.id}/run.json`,
+        { data }
+      );
+      this.columns = result.columns;
+      this.rows = result.rows;
+      this.queryParams = result.params || [];
+      this.editableParams = new Map(
+        this.queryParams.map((p) => [p.identifier, p.value ?? p.default])
+      );
+      this.error = false;
+
+      if (
+        this._canvas &&
+        this.rows?.length &&
+        this.numericColumnIndices.length > 0
+      ) {
+        const Chart = await loadChartJS();
+        this.chart?.destroy();
+        this.chart = new Chart(
+          this._canvas.getContext("2d"),
+          this.buildChartConfig()
+        );
+      }
+    } catch {
+      this.error = true;
+    } finally {
+      this.rerunning = false;
+    }
   }
 
   get tableWrapId() {
@@ -342,9 +433,38 @@ export default class InsightsReportChart extends Component {
             {{#if this.showTable}}
               {{#if this.hasParams}}
                 <div class="insights-report-chart__params">
-                  {{#each this.resolvedParams as |p|}}
-                    <span class="insights-report-chart__param-chip">{{p.identifier}}: {{p.value}}</span>
+                  {{#each this.editableParamFields as |p|}}
+                    {{#if p.editable}}
+                      <label class="insights-report-chart__param-field">
+                        <span class="insights-report-chart__param-label">{{p.identifier}}</span>
+                        {{#if p.isCheckbox}}
+                          <input
+                            type="checkbox"
+                            checked={{eq p.value "true"}}
+                            class="insights-report-chart__param-input"
+                            {{on "change" (fn this.updateParam p.identifier)}}
+                          />
+                        {{else}}
+                          <input
+                            type={{p.inputType}}
+                            step={{p.inputStep}}
+                            value={{p.value}}
+                            class="insights-report-chart__param-input"
+                            {{on "change" (fn this.updateParam p.identifier)}}
+                          />
+                        {{/if}}
+                      </label>
+                    {{else}}
+                      <span class="insights-report-chart__param-chip">{{p.identifier}}: {{p.value}}</span>
+                    {{/if}}
                   {{/each}}
+                  <DButton
+                    class="btn-transparent btn-small insights-report-chart__run-btn"
+                    @action={{this.rerun}}
+                    @icon="play"
+                    @title="discourse_insights.reports.run"
+                    @disabled={{this.rerunning}}
+                  />
                 </div>
               {{/if}}
               <div class="insights-report-chart__table-scroll">

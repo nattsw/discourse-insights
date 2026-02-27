@@ -142,7 +142,7 @@ module ::DiscourseInsights
     end
 
     def default_report_ids
-      (PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || []).dup
+      (PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || []).first(4)
     end
 
     def seeded_query_id_set

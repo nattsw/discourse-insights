@@ -40,6 +40,31 @@ module ::DiscourseInsights
           AND id > 0
         GROUP BY week ORDER BY week
       SQL
+    {
+      name: "Pageviews by Type",
+      description:
+        "Daily browser pageviews broken down by logged-in, anonymous, crawler, and other traffic.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          ar.date::date AS day,
+          SUM(CASE WHEN ar.req_type = 15 THEN count ELSE 0 END) AS "Logged In",
+          SUM(CASE WHEN ar.req_type = 13 THEN count ELSE 0 END) AS "Anonymous",
+          SUM(CASE WHEN ar.req_type = 6 THEN count ELSE 0 END) AS "Crawlers",
+          SUM(
+            CASE WHEN ar.req_type IN (7, 8) THEN count
+                 WHEN ar.req_type IN (13, 15) THEN -count
+                 ELSE 0
+            END
+          ) AS "Other"
+        FROM application_requests ar
+        WHERE ar.date::date BETWEEN :start_date AND :end_date
+        GROUP BY ar.date
+        ORDER BY ar.date
+      SQL
+    },
     { name: "Posts Per Week", description: "Posts created per week.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
