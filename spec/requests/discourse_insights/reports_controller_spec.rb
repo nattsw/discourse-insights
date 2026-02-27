@@ -175,6 +175,45 @@ describe DiscourseInsights::ReportsController do
       expect(body["rows"].first).to eq(%w[2025-06-15])
     end
 
+    it "returns param metadata with identifier, type, default, and value" do
+      query =
+        create_de_query(
+          sql:
+            "-- [params]\n-- date :start_date = 2025-01-01\n-- date :end_date = 2025-12-31\nSELECT :start_date::date AS d1, :end_date::date AS d2",
+        )
+
+      get "/insights/reports/#{query.id}/run.json",
+          params: {
+            start_date: "2026-03-01",
+          }
+      expect(response.status).to eq(200)
+
+      params = response.parsed_body["params"]
+      expect(params.length).to eq(2)
+
+      start_param = params.find { |p| p["identifier"] == "start_date" }
+      expect(start_param["type"]).to eq("date")
+      expect(start_param["default"]).to eq("2025-01-01")
+      expect(start_param["value"]).to eq("2026-03-01")
+
+      end_param = params.find { |p| p["identifier"] == "end_date" }
+      expect(end_param["type"]).to eq("date")
+      expect(end_param["default"]).to eq("2025-12-31")
+      expect(end_param["value"]).to be_nil
+    end
+
+    it "returns empty params array for queries with no params" do
+      query = create_de_query(sql: "SELECT 1 AS num")
+
+      get "/insights/reports/#{query.id}/run.json"
+      expect(response.status).to eq(200)
+
+      body = response.parsed_body
+      expect(body["params"]).to eq([])
+      expect(body["columns"]).to eq(%w[num])
+      expect(body["rows"]).to be_present
+    end
+
     it "is rate limited" do
       query = create_de_query
 

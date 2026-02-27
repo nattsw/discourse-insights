@@ -76,6 +76,9 @@ en:
         no_data: "No data available."
         none_available: "All available queries are already added."
         insights_query_tooltip: "Insights query"
+        show_data: "Show data"
+        hide_data: "Hide data"
+        open_in_data_explorer: "Open in Data Explorer"
       explore:
         content: "Content Performance"
         content_summary: "Top topics, search terms"

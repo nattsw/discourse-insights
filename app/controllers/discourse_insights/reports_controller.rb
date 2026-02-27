@@ -71,7 +71,19 @@ module ::DiscourseInsights
       end
 
       pg = result[:pg_result]
-      response = { columns: pg.fields, rows: pg.values }
+      response = {
+        columns: pg.fields,
+        rows: pg.values,
+        params:
+          query.params.map do |p|
+            {
+              identifier: p.identifier,
+              type: p.type,
+              default: p.default,
+              value: query_params[p.identifier],
+            }
+          end,
+      }
       Discourse.cache.write(cache_key, response, expires_in: 35.minutes)
       render json: response
     end

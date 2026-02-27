@@ -1,12 +1,23 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
+import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
+import icon from "discourse/helpers/d-icon";
 import DButton from "discourse/components/d-button";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
 import loadChartJS from "discourse/lib/load-chart-js";
 import { i18n } from "discourse-i18n";
+
+const SERIES_COLORS = [
+  "#1EB8D1",
+  "#9BC53D",
+  "#721D8D",
+  "#E84A5F",
+  "#8A6916",
+  "#FFCD56",
+];
 
 function themeColor(name) {
   return getComputedStyle(document.body).getPropertyValue(name);
@@ -19,11 +30,23 @@ function looksLikeDate(value) {
   return /^\d{4}-\d{2}-\d{2}/.test(value);
 }
 
+function isNumericColumn(rows, colIndex) {
+  for (const row of rows) {
+    const val = row[colIndex];
+    if (val !== null && val !== undefined && val !== "") {
+      return Number.isFinite(Number(val));
+    }
+  }
+  return false;
+}
+
 export default class InsightsReportChart extends Component {
   @tracked loading = true;
   @tracked error = false;
   @tracked columns = null;
   @tracked rows = null;
+  @tracked queryParams = null;
+  @tracked showTable = false;
   chart = null;
 
   constructor() {
@@ -51,6 +74,7 @@ export default class InsightsReportChart extends Component {
       );
       this.columns = result.columns;
       this.rows = result.rows;
+      this.queryParams = result.params || [];
       this.error = false;
     } catch {
       this.error = true;
@@ -59,21 +83,53 @@ export default class InsightsReportChart extends Component {
     }
   }
 
+  get numericColumnIndices() {
+    if (!this.rows?.length || !this.columns?.length) {
+      return [];
+    }
+    const indices = [];
+    for (let i = 1; i < this.columns.length; i++) {
+      if (isNumericColumn(this.rows, i)) {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }
+
+  get isMultiSeries() {
+    return this.numericColumnIndices.length > 1;
+  }
+
+  get hasDates() {
+    return this.rows?.length > 0 && looksLikeDate(this.rows[0][0]);
+  }
+
   get chartType() {
     if (!this.rows?.length || !this.columns?.length) {
       return "bar";
     }
-    return looksLikeDate(this.rows[0][0]) ? "line" : "bar";
+    if (this.isMultiSeries) {
+      return "bar";
+    }
+    return this.hasDates ? "line" : "bar";
   }
 
   buildChartConfig() {
     const labels = this.rows.map((r) => r[0]);
-    const values = this.rows.map((r) => Number(r[1]));
-    const isLine = this.chartType === "line";
-
-    const primaryColor = themeColor("--tertiary").trim();
     const gridColor = themeColor("--primary-low").trim();
     const labelColor = themeColor("--primary-medium").trim();
+
+    if (this.isMultiSeries) {
+      return this._buildMultiSeriesConfig(labels, gridColor, labelColor);
+    }
+
+    return this._buildSingleSeriesConfig(labels, gridColor, labelColor);
+  }
+
+  _buildSingleSeriesConfig(labels, gridColor, labelColor) {
+    const values = this.rows.map((r) => Number(r[1]));
+    const isLine = this.chartType === "line";
+    const primaryColor = themeColor("--tertiary").trim();
 
     const dataset = {
       label: this.columns[1],
@@ -115,9 +171,74 @@ export default class InsightsReportChart extends Component {
     };
   }
 
+  _buildMultiSeriesConfig(labels, gridColor, labelColor) {
+    const indices = this.numericColumnIndices;
+    const useDates = this.hasDates;
+
+    const datasets = indices.map((colIdx, i) => {
+      const color = SERIES_COLORS[i % SERIES_COLORS.length];
+      const ds = {
+        label: this.columns[colIdx],
+        data: this.rows.map((r) => Number(r[colIdx])),
+        backgroundColor: color,
+        borderColor: color,
+        borderWidth: 1,
+      };
+
+      if (useDates) {
+        ds.stack = "insights-stack";
+      }
+
+      return ds;
+    });
+
+    const scales = {
+      x: {
+        ticks: { color: labelColor, maxTicksLimit: 8 },
+        grid: { display: false },
+      },
+      y: {
+        ticks: { color: labelColor },
+        grid: { color: gridColor },
+        beginAtZero: true,
+      },
+    };
+
+    if (useDates) {
+      scales.x.stacked = true;
+      scales.y.stacked = true;
+    }
+
+    return {
+      type: "bar",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: "bottom" },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            callbacks: {
+              beforeFooter(items) {
+                const total = items.reduce(
+                  (sum, item) => sum + (item.parsed.y || 0),
+                  0
+                );
+                return `Total: ${total.toLocaleString()}`;
+              },
+            },
+          },
+        },
+        scales,
+      },
+    };
+  }
+
   @action
   async initChart(canvas) {
-    if (!this.rows?.length || this.columns?.length < 2) {
+    if (!this.rows?.length || this.numericColumnIndices.length === 0) {
       return;
     }
 
@@ -132,6 +253,29 @@ export default class InsightsReportChart extends Component {
     return getURL(
       `/admin/plugins/discourse-data-explorer/queries/${this.args.report.id}`
     );
+  }
+
+  get hasParams() {
+    return this.queryParams?.length > 0;
+  }
+
+  get resolvedParams() {
+    if (!this.queryParams) {
+      return [];
+    }
+    return this.queryParams.map((p) => ({
+      identifier: p.identifier,
+      value: p.value ?? p.default,
+    }));
+  }
+
+  get tableWrapId() {
+    return `insights-table-${this.args.report.id}`;
+  }
+
+  @action
+  toggleTable() {
+    this.showTable = !this.showTable;
   }
 
   @action
@@ -170,6 +314,61 @@ export default class InsightsReportChart extends Component {
       {{else if this.rows.length}}
         <div class="insights-report-chart__canvas-wrap">
           <canvas {{didInsert this.initChart}}></canvas>
+        </div>
+        <div class="insights-report-chart__data-section">
+          <div class="insights-report-chart__table-toggle">
+            <button
+              type="button"
+              class="btn-transparent insights-report-chart__toggle-btn"
+              aria-expanded={{if this.showTable "true" "false"}}
+              aria-controls={{this.tableWrapId}}
+              {{on "click" this.toggleTable}}
+            >
+              {{icon (if this.showTable "chevron-down" "chevron-right")}}
+              {{if this.showTable (i18n "discourse_insights.reports.hide_data") (i18n "discourse_insights.reports.show_data")}}
+            </button>
+            <a
+              href={{this.queryUrl}}
+              class="insights-report-chart__de-link"
+              aria-label={{i18n "discourse_insights.reports.open_in_data_explorer"}}
+            >
+              {{icon "external-link-alt"}}
+            </a>
+          </div>
+          <div
+            id={{this.tableWrapId}}
+            class={{if this.showTable "insights-report-chart__table-wrap insights-report-chart__table-wrap--open" "insights-report-chart__table-wrap"}}
+          >
+            {{#if this.showTable}}
+              {{#if this.hasParams}}
+                <div class="insights-report-chart__params">
+                  {{#each this.resolvedParams as |p|}}
+                    <span class="insights-report-chart__param-chip">{{p.identifier}}: {{p.value}}</span>
+                  {{/each}}
+                </div>
+              {{/if}}
+              <div class="insights-report-chart__table-scroll">
+                <table class="insights-report-chart__table">
+                  <thead>
+                    <tr>
+                      {{#each this.columns as |col|}}
+                        <th>{{col}}</th>
+                      {{/each}}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {{#each this.rows as |row|}}
+                      <tr>
+                        {{#each row as |cell|}}
+                          <td>{{cell}}</td>
+                        {{/each}}
+                      </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+            {{/if}}
+          </div>
         </div>
       {{else}}
         <div class="insights-report-chart__empty">
