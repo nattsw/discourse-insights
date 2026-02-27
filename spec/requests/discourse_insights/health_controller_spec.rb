@@ -50,6 +50,39 @@ describe DiscourseInsights::HealthController do
         expect(response.status).to eq(200)
         expect(response.parsed_body["period"]["key"]).to eq("30d")
       end
+
+      it "accepts valid custom date range" do
+        get "/insights/health.json",
+            params: {
+              start_date: 30.days.ago.to_date.to_s,
+              end_date: Date.today.to_s,
+            }
+        expect(response.status).to eq(200)
+        expect(response.parsed_body["period"]["key"]).to eq("custom")
+      end
+
+      it "returns 400 for invalid date strings" do
+        get "/insights/health.json", params: { start_date: "not-a-date", end_date: "also-bad" }
+        expect(response.status).to eq(400)
+      end
+
+      it "returns 400 for date range exceeding 365 days" do
+        get "/insights/health.json",
+            params: {
+              start_date: "2024-01-01",
+              end_date: "2025-12-31",
+            }
+        expect(response.status).to eq(400)
+      end
+
+      it "normalizes date cache keys to prevent cache pollution" do
+        get "/insights/health.json",
+            params: {
+              start_date: "2026-01-01",
+              end_date: "2026-01-31",
+            }
+        expect(response.status).to eq(200)
+      end
     end
 
     context "when logged in as a regular user not in allowed groups" do

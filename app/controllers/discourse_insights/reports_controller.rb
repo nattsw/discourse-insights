@@ -13,7 +13,8 @@ module ::DiscourseInsights
       queries =
         query_ids.filter_map do |id|
           begin
-            DiscourseDataExplorer::Query.find(id)
+            query = DiscourseDataExplorer::Query.find(id)
+            query if !query.hidden && guardian.user_can_access_query?(query)
           rescue ActiveRecord::RecordNotFound
             nil
           end
@@ -35,6 +36,15 @@ module ::DiscourseInsights
     def run
       query_id = params[:id].to_i
       query = DiscourseDataExplorer::Query.find(query_id)
+      raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
+
+      RateLimiter.new(
+        current_user,
+        "insights-run-report",
+        10,
+        1.minute,
+        apply_limit_to_staff: true,
+      ).performed!
 
       query_params = {}
       query.params.each do |p|
@@ -59,7 +69,8 @@ module ::DiscourseInsights
 
     def add
       query_id = params[:query_id].to_i
-      DiscourseDataExplorer::Query.find(query_id)
+      query = DiscourseDataExplorer::Query.find(query_id)
+      raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
 
       ids = user_report_ids
       unless ids.include?(query_id)
@@ -80,20 +91,22 @@ module ::DiscourseInsights
     end
 
     def available
-      all_queries = DiscourseDataExplorer::Query.where(hidden: false).order(:name)
+      all_queries = DiscourseDataExplorer::Query.includes(:groups).where(hidden: false).order(:name)
       pinned = user_report_ids
 
       render json: {
                queries:
-                 all_queries.map do |q|
-                   {
-                     id: q.id,
-                     name: q.name,
-                     description: q.description,
-                     pinned: pinned.include?(q.id),
-                     insights: seeded_query_id_set.include?(q.id),
-                   }
-                 end,
+                 all_queries
+                   .select { |q| guardian.user_can_access_query?(q) }
+                   .map do |q|
+                     {
+                       id: q.id,
+                       name: q.name,
+                       description: q.description,
+                       pinned: pinned.include?(q.id),
+                       insights: seeded_query_id_set.include?(q.id),
+                     }
+                   end,
              }
     end
 
@@ -122,7 +135,9 @@ module ::DiscourseInsights
     end
 
     def ensure_data_explorer
-      raise Discourse::NotFound unless defined?(DiscourseDataExplorer)
+      unless defined?(DiscourseDataExplorer) && SiteSetting.data_explorer_enabled
+        raise Discourse::NotFound
+      end
     end
   end
 end

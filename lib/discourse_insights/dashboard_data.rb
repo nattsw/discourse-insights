@@ -4,11 +4,14 @@ module ::DiscourseInsights
   class DashboardData
     PERIODS = { "7d" => 7, "30d" => 30, "3m" => 90 }.freeze
 
+    MAX_DAYS = 365
+
     def initialize(period: "30d", start_date: nil, end_date: nil)
       if start_date.present? && end_date.present?
         @start_date = Date.parse(start_date.to_s)
         @end_date = Date.parse(end_date.to_s)
         @days = (@end_date - @start_date).to_i + 1
+        raise Discourse::InvalidParameters if @days < 1 || @days > MAX_DAYS
         @period_key = "custom"
       else
         days = PERIODS[period] || 30

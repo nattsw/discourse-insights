@@ -182,6 +182,28 @@ after_initialize do
         query.id
       end
     PluginStore.set(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids", seeded_ids)
+
+    sync_query_groups =
+      lambda do |query_ids|
+        group_ids = SiteSetting.insights_allowed_groups_map
+        query_ids.each do |query_id|
+          group_ids.each do |group_id|
+            DiscourseDataExplorer::QueryGroup.find_or_create_by(
+              query_id: query_id,
+              group_id: group_id,
+            )
+          end
+        end
+      end
+
+    sync_query_groups.call(seeded_ids)
+
+    on(:site_setting_changed) do |name, _old, _new|
+      if name == :insights_allowed_groups
+        ids = PluginStore.get(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids") || []
+        sync_query_groups.call(ids) if ids.present?
+      end
+    end
   end
 
   if defined?(DiscourseAi)

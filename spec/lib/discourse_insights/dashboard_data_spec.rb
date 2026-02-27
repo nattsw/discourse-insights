@@ -242,5 +242,23 @@ describe DiscourseInsights::DashboardData do
       expect(result[:period][:key]).to eq("invalid")
       expect(result[:period][:end_date]).to eq(Date.today)
     end
+
+    it "accepts a 365-day custom range" do
+      instance = described_class.new(start_date: "2025-01-01", end_date: "2025-12-31")
+      result = instance.compute
+      expect(result[:period][:key]).to eq("custom")
+    end
+
+    it "rejects custom date ranges exceeding 365 days" do
+      expect {
+        described_class.new(start_date: "2024-01-01", end_date: "2025-12-31")
+      }.to raise_error(Discourse::InvalidParameters)
+    end
+
+    it "rejects custom date ranges where end is before start" do
+      expect {
+        described_class.new(start_date: "2026-02-01", end_date: "2026-01-01")
+      }.to raise_error(Discourse::InvalidParameters)
+    end
   end
 end

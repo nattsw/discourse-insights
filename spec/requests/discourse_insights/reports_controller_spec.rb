@@ -4,7 +4,10 @@ describe DiscourseInsights::ReportsController do
   fab!(:admin)
   fab!(:user)
 
-  before { enable_current_plugin }
+  before do
+    enable_current_plugin
+    SiteSetting.data_explorer_enabled = true
+  end
 
   def create_de_query(name: "Test Query", sql: "SELECT 1 AS value")
     DiscourseDataExplorer::Query.create!(
@@ -55,6 +58,45 @@ describe DiscourseInsights::ReportsController do
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
       end
+
+      it "filters out hidden queries" do
+        query = create_de_query
+        query.update!(hidden: true)
+        PluginStore.set("discourse-insights", "reports_#{admin.id}", [query.id])
+
+        get "/insights/reports.json"
+        expect(response.parsed_body["reports"]).to be_empty
+      end
+    end
+
+    context "when user is a non-admin in insights allowed group" do
+      fab!(:group)
+      fab!(:member) { Fabricate(:user, groups: [group]) }
+
+      before do
+        SiteSetting.insights_allowed_groups = "#{Group::AUTO_GROUPS[:admins]}|#{group.id}"
+        sign_in(member)
+      end
+
+      it "only returns queries accessible to the user" do
+        accessible = create_de_query(name: "Accessible")
+        DiscourseDataExplorer::QueryGroup.create!(query_id: accessible.id, group_id: group.id)
+
+        restricted = create_de_query(name: "Restricted")
+        other_group = Fabricate(:group)
+        DiscourseDataExplorer::QueryGroup.create!(query_id: restricted.id, group_id: other_group.id)
+
+        PluginStore.set(
+          "discourse-insights",
+          "reports_#{member.id}",
+          [accessible.id, restricted.id],
+        )
+
+        get "/insights/reports.json"
+        names = response.parsed_body["reports"].map { |r| r["name"] }
+        expect(names).to include("Accessible")
+        expect(names).not_to include("Restricted")
+      end
     end
 
     context "when not logged in" do
@@ -93,6 +135,14 @@ describe DiscourseInsights::ReportsController do
       expect(response.status).to eq(404)
     end
 
+    it "returns 404 for hidden queries" do
+      query = create_de_query
+      query.update!(hidden: true)
+
+      get "/insights/reports/#{query.id}/run.json"
+      expect(response.status).to eq(404)
+    end
+
     it "forwards date params to parameterized queries" do
       query =
         create_de_query(
@@ -124,6 +174,45 @@ describe DiscourseInsights::ReportsController do
       body = response.parsed_body
       expect(body["rows"].first).to eq(%w[2025-06-15])
     end
+
+    it "is rate limited" do
+      query = create_de_query
+
+      RateLimiter.enable
+      10.times do
+        get "/insights/reports/#{query.id}/run.json"
+        expect(response.status).to eq(200)
+      end
+      get "/insights/reports/#{query.id}/run.json"
+      expect(response.status).to eq(429)
+    end
+
+    context "when user is a non-admin in insights allowed group" do
+      fab!(:group)
+      fab!(:member) { Fabricate(:user, groups: [group]) }
+
+      before do
+        SiteSetting.insights_allowed_groups = "#{Group::AUTO_GROUPS[:admins]}|#{group.id}"
+        sign_in(member)
+      end
+
+      it "allows running queries assigned to the user's group" do
+        query = create_de_query(sql: "SELECT 1 AS value")
+        DiscourseDataExplorer::QueryGroup.create!(query_id: query.id, group_id: group.id)
+
+        get "/insights/reports/#{query.id}/run.json"
+        expect(response.status).to eq(200)
+      end
+
+      it "denies running queries not assigned to any of the user's groups" do
+        query = create_de_query(sql: "SELECT 1 AS value")
+        other_group = Fabricate(:group)
+        DiscourseDataExplorer::QueryGroup.create!(query_id: query.id, group_id: other_group.id)
+
+        get "/insights/reports/#{query.id}/run.json"
+        expect(response.status).to eq(404)
+      end
+    end
   end
 
   describe "#add" do
@@ -152,6 +241,14 @@ describe DiscourseInsights::ReportsController do
 
     it "returns 404 for non-existent query" do
       post "/insights/reports.json", params: { query_id: 99_999 }
+      expect(response.status).to eq(404)
+    end
+
+    it "returns 404 for hidden queries" do
+      query = create_de_query
+      query.update!(hidden: true)
+
+      post "/insights/reports.json", params: { query_id: query.id }
       expect(response.status).to eq(404)
     end
   end
@@ -196,6 +293,34 @@ describe DiscourseInsights::ReportsController do
 
       custom = queries.find { |q| q["id"] == q3.id }
       expect(custom["insights"]).to eq(false)
+    end
+
+    context "when user is a non-admin in insights allowed group" do
+      fab!(:group)
+      fab!(:member) { Fabricate(:user, groups: [group]) }
+
+      before do
+        SiteSetting.insights_allowed_groups = "#{Group::AUTO_GROUPS[:admins]}|#{group.id}"
+        sign_in(member)
+      end
+
+      it "only lists queries the user can access" do
+        accessible = create_de_query(name: "My Query")
+        DiscourseDataExplorer::QueryGroup.create!(query_id: accessible.id, group_id: group.id)
+
+        restricted = create_de_query(name: "Admin Only")
+        other_group = Fabricate(:group)
+        DiscourseDataExplorer::QueryGroup.create!(query_id: restricted.id, group_id: other_group.id)
+
+        # query with no group restrictions is accessible to all
+        open_query = create_de_query(name: "Open Query")
+
+        get "/insights/reports/available.json"
+        names = response.parsed_body["queries"].map { |q| q["name"] }
+        expect(names).to include("My Query")
+        expect(names).to include("Open Query")
+        expect(names).not_to include("Admin Only")
+      end
     end
   end
 end

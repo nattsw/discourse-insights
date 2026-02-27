@@ -9,8 +9,12 @@ module ::DiscourseInsights
 
     def show
       if params[:start_date].present? && params[:end_date].present?
-        start_date = params[:start_date]
-        end_date = params[:end_date]
+        begin
+          start_date = Date.parse(params[:start_date]).to_s
+          end_date = Date.parse(params[:end_date]).to_s
+        rescue Date::Error
+          raise Discourse::InvalidParameters
+        end
         cache_key = "insights_custom_#{start_date}_#{end_date}"
         data_opts = { start_date:, end_date: }
       else
