@@ -976,6 +976,23 @@ export default class InsightsDashboard extends Component {
             {{/each}}
           </div>
 
+          {{#if this.aiAvailable}}
+            <form
+              class="insights-ask"
+              {{on "submit" this.submitCustomQuestion}}
+            >
+              <input
+                type="text"
+                class="insights-ask__input"
+                placeholder={{i18n
+                  "discourse_insights.questions.custom_placeholder"
+                }}
+                value={{this.customQuestion}}
+                {{on "input" this.updateCustomQuestion}}
+              />
+            </form>
+          {{/if}}
+
           {{#if this.expandedQuestion}}
             <div class="insights-answer">
               {{#if this.aiAnswerLoading}}
@@ -992,23 +1009,6 @@ export default class InsightsDashboard extends Component {
                 <div class="insights-answer__text">{{this.questionAnswer}}</div>
               {{/if}}
             </div>
-          {{/if}}
-
-          {{#if this.aiAvailable}}
-            <form
-              class="insights-ask"
-              {{on "submit" this.submitCustomQuestion}}
-            >
-              <input
-                type="text"
-                class="insights-ask__input"
-                placeholder={{i18n
-                  "discourse_insights.questions.custom_placeholder"
-                }}
-                value={{this.customQuestion}}
-                {{on "input" this.updateCustomQuestion}}
-              />
-            </form>
           {{/if}}
         </div>
 
