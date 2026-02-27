@@ -22,7 +22,7 @@ module ::DiscourseInsights
     end
 
     def compute
-      {
+      result = {
         period: period_info,
         metrics: compute_metrics,
         dau_wau_mau: compute_dau_wau_mau,
@@ -32,6 +32,11 @@ module ::DiscourseInsights
         traffic_sources: compute_traffic_sources,
         categories: compute_categories,
       }
+
+      geo = compute_geo_breakdown
+      result[:geo_breakdown] = geo if geo.present?
+
+      result
     end
 
     private
@@ -352,6 +357,40 @@ module ::DiscourseInsights
           end
 
         cat.merge(trend_pct:)
+      end
+    end
+
+    def compute_geo_breakdown
+      return [] unless ActiveRecord::Base.connection.table_exists?(:insights_user_geos)
+
+      rows = DB.query(<<~SQL, start_date: @start_date, end_date: @end_date)
+          SELECT
+            g.country_code,
+            g.country,
+            COUNT(DISTINCT uv.user_id) AS count,
+            AVG(g.latitude) AS latitude,
+            AVG(g.longitude) AS longitude
+          FROM user_visits uv
+          JOIN insights_user_geos g ON g.user_id = uv.user_id
+          WHERE uv.visited_at BETWEEN :start_date AND :end_date
+            AND g.country_code IS NOT NULL
+          GROUP BY g.country_code, g.country
+          ORDER BY count DESC
+          LIMIT 50
+        SQL
+
+      total = rows.sum(&:count)
+      return [] if total == 0
+
+      rows.map do |row|
+        {
+          country_code: row.country_code,
+          country: row.country,
+          count: row.count,
+          pct: (row.count.to_f / total * 100).round(1),
+          latitude: row.latitude&.round(2),
+          longitude: row.longitude&.round(2),
+        }
       end
     end
 

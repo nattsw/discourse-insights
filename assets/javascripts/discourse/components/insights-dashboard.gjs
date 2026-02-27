@@ -20,6 +20,7 @@ import { i18n } from "discourse-i18n";
 import DTooltip from "discourse/float-kit/components/d-tooltip";
 import AddReportModal from "./add-report-modal";
 import InsightsDateRangeModal from "./insights-date-range-modal";
+import InsightsGeoMap from "./insights-geo-map";
 import InsightsReportChart from "./insights-report-chart";
 
 const AI_TIMEOUT_MS = 30000;
@@ -275,6 +276,10 @@ export default class InsightsDashboard extends Component {
       ...topic,
       url: getURL(`/t/-/${topic.topic_id}`),
     }));
+  }
+
+  get geoBreakdown() {
+    return this.data?.geo_breakdown ?? [];
   }
 
   get categoriesForDisplay() {
@@ -1155,21 +1160,61 @@ export default class InsightsDashboard extends Component {
           </button>
           {{#if this.isTrafficExpanded}}
             <div class="insights-explore__body">
-              <div class="insights-card">
-                <table class="insights-rank-table">
-                  <tbody>
-                    {{#each this.data.traffic_sources as |source|}}
-                      <tr>
-                        <td
-                          class="insights-rank-table__name"
-                        >{{source.domain}}</td>
-                        <td class="insights-rank-table__value">{{number
-                            source.clicks
-                          }}</td>
-                      </tr>
-                    {{/each}}
-                  </tbody>
-                </table>
+              {{#if this.geoBreakdown.length}}
+                <div class="insights-card insights-card--full">
+                  <div class="insights-card__title">{{i18n
+                      "discourse_insights.explore.geography"
+                    }}</div>
+                  <InsightsGeoMap @data={{this.geoBreakdown}} />
+                </div>
+              {{/if}}
+              <div
+                class="insights-explore__grid
+                  {{if this.geoBreakdown.length 'insights-explore__grid--2'}}"
+              >
+                <div class="insights-card">
+                  <div class="insights-card__title">{{i18n
+                      "discourse_insights.explore.referrers"
+                    }}</div>
+                  <table class="insights-rank-table">
+                    <tbody>
+                      {{#each this.data.traffic_sources as |source|}}
+                        <tr>
+                          <td
+                            class="insights-rank-table__name"
+                          >{{source.domain}}</td>
+                          <td class="insights-rank-table__value">{{number
+                              source.clicks
+                            }}</td>
+                        </tr>
+                      {{/each}}
+                    </tbody>
+                  </table>
+                </div>
+                {{#if this.geoBreakdown.length}}
+                  <div class="insights-card">
+                    <div class="insights-card__title">{{i18n
+                        "discourse_insights.explore.top_countries"
+                      }}</div>
+                    <table class="insights-rank-table">
+                      <tbody>
+                        {{#each this.geoBreakdown as |geo|}}
+                          <tr>
+                            <td class="insights-rank-table__name">
+                              {{geo.country}}
+                            </td>
+                            <td class="insights-rank-table__value">{{number
+                                geo.count
+                              }}</td>
+                            <td
+                              class="insights-rank-table__meta"
+                            >{{geo.pct}}%</td>
+                          </tr>
+                        {{/each}}
+                      </tbody>
+                    </table>
+                  </div>
+                {{/if}}
               </div>
             </div>
           {{/if}}

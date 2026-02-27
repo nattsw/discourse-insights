@@ -159,6 +159,70 @@ describe DiscourseInsights::DashboardData do
     end
   end
 
+  describe "geo_breakdown" do
+    it "returns country breakdown from active users in period" do
+      UserVisit.create!(user_id: user_1.id, visited_at: 5.days.ago)
+      UserVisit.create!(user_id: user_2.id, visited_at: 3.days.ago)
+      UserVisit.create!(user_id: user_3.id, visited_at: 2.days.ago)
+
+      InsightsUserGeo.create!(
+        user_id: user_1.id,
+        country_code: "US",
+        country: "United States",
+        ip_address: "1.1.1.1",
+      )
+      InsightsUserGeo.create!(
+        user_id: user_2.id,
+        country_code: "US",
+        country: "United States",
+        ip_address: "2.2.2.2",
+      )
+      InsightsUserGeo.create!(
+        user_id: user_3.id,
+        country_code: "GB",
+        country: "United Kingdom",
+        ip_address: "3.3.3.3",
+      )
+
+      result = data.compute[:geo_breakdown]
+      expect(result).to be_present
+      us = result.find { |r| r[:country_code] == "US" }
+      gb = result.find { |r| r[:country_code] == "GB" }
+      expect(us[:count]).to eq(2)
+      expect(gb[:count]).to eq(1)
+      expect(us[:pct]).to be_within(0.1).of(66.7)
+    end
+
+    it "excludes users not active in the period" do
+      UserVisit.create!(user_id: user_1.id, visited_at: 5.days.ago)
+      # user_2 has no visits in period
+
+      InsightsUserGeo.create!(
+        user_id: user_1.id,
+        country_code: "US",
+        country: "United States",
+        ip_address: "1.1.1.1",
+      )
+      InsightsUserGeo.create!(
+        user_id: user_2.id,
+        country_code: "GB",
+        country: "United Kingdom",
+        ip_address: "2.2.2.2",
+      )
+
+      result = data.compute[:geo_breakdown]
+      expect(result.length).to eq(1)
+      expect(result.first[:country_code]).to eq("US")
+    end
+
+    it "omits geo_breakdown when no geo data exists" do
+      UserVisit.create!(user_id: user_1.id, visited_at: 5.days.ago)
+
+      result = data.compute
+      expect(result).not_to have_key(:geo_breakdown)
+    end
+  end
+
   describe "period handling" do
     it "handles 7d period" do
       instance = described_class.new(period: "7d")
