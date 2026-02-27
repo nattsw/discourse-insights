@@ -29,7 +29,14 @@ export default class AddReportModal extends Component {
   }
 
   get unpinnedQueries() {
-    return (this.queries ?? []).filter((q) => !q.pinned);
+    return (this.queries ?? [])
+      .filter((q) => !q.pinned)
+      .sort((a, b) => {
+        if (a.insights !== b.insights) {
+          return a.insights ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
   }
 
   @action
@@ -62,7 +69,10 @@ export default class AddReportModal extends Component {
             {{#each this.unpinnedQueries as |query|}}
               <li class="add-report-modal__item">
                 <div class="add-report-modal__info">
-                  <span class="add-report-modal__name">{{query.name}}</span>
+                  <span class="add-report-modal__name">
+                    {{#if query.insights}}<span class="insights-sparkle-badge" title={{i18n "discourse_insights.reports.insights_query_tooltip"}}>✦</span>{{/if}}
+                    {{query.name}}
+                  </span>
                   {{#if query.description}}
                     <span
                       class="add-report-modal__desc"

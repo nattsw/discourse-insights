@@ -20,7 +20,15 @@ module ::DiscourseInsights
         end
 
       render json: {
-               reports: queries.map { |q| { id: q.id, name: q.name, description: q.description } },
+               reports:
+                 queries.map do |q|
+                   {
+                     id: q.id,
+                     name: q.name,
+                     description: q.description,
+                     insights: seeded_query_id_set.include?(q.id),
+                   }
+                 end,
              }
     end
 
@@ -78,7 +86,13 @@ module ::DiscourseInsights
       render json: {
                queries:
                  all_queries.map do |q|
-                   { id: q.id, name: q.name, description: q.description, pinned: pinned.include?(q.id) }
+                   {
+                     id: q.id,
+                     name: q.name,
+                     description: q.description,
+                     pinned: pinned.include?(q.id),
+                     insights: seeded_query_id_set.include?(q.id),
+                   }
                  end,
              }
     end
@@ -95,6 +109,10 @@ module ::DiscourseInsights
 
     def default_report_ids
       (PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || []).dup
+    end
+
+    def seeded_query_id_set
+      @seeded_query_id_set ||= Set.new(PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || [])
     end
 
     def ensure_allowed

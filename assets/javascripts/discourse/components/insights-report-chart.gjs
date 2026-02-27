@@ -142,10 +142,13 @@ export default class InsightsReportChart extends Component {
   <template>
     <div class="insights-report-chart">
       <div class="insights-report-chart__header">
-        <a
-          href={{this.queryUrl}}
-          class="insights-report-chart__title"
-        >{{@report.name}}</a>
+        <div class="insights-report-chart__title-wrap">
+          {{#if @report.insights}}<span class="insights-sparkle-badge" title={{i18n "discourse_insights.reports.insights_query_tooltip"}}>✦</span>{{/if}}
+          <a
+            href={{this.queryUrl}}
+            class="insights-report-chart__title"
+          >{{@report.name}}</a>
+        </div>
         <DButton
           class="btn-transparent btn-small insights-report-chart__remove"
           @action={{this.removeReport}}

@@ -587,6 +587,90 @@
   cursor: pointer;
 }
 
+// Seeded query sparkle badge
+.insights-sparkle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, var(--tertiary), var(--tertiary-medium));
+  border-radius: 3px;
+  color: var(--secondary);
+  font-size: var(--font-down-2);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+// Grid layout within explore body
+.insights-explore__grid--2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75em;
+
+  @media (width <= 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.insights-card--full {
+  margin-bottom: 0.75em;
+}
+
+// Geo map
+.insights-geo-map {
+  position: relative;
+
+  svg {
+    width: 100%;
+    height: auto;
+    background: var(--primary-very-low);
+    border-radius: var(--d-border-radius);
+  }
+
+  &__land {
+    fill: var(--primary-low);
+    stroke: none;
+  }
+
+  &__bubble {
+    fill: var(--tertiary);
+    stroke: var(--secondary);
+    stroke-width: 0.5;
+    cursor: pointer;
+    transition: r 0.15s ease;
+
+    &:hover {
+      stroke: var(--tertiary);
+      stroke-width: 1;
+    }
+  }
+
+  &__tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    background: var(--primary);
+    color: var(--secondary);
+    padding: 0.35em 0.6em;
+    border-radius: var(--d-border-radius);
+    font-size: var(--font-down-2);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    gap: 0.4em;
+    align-items: baseline;
+
+    strong {
+      font-weight: 700;
+    }
+
+    span {
+      opacity: 0.8;
+    }
+  }
+}
+
 // Report charts
 .insights-explore__body--reports {
   display: grid;
@@ -609,6 +693,13 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 0.5em;
+  }
+
+  &__title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.375em;
+    min-width: 0;
   }
 
   &__title {
@@ -707,6 +798,9 @@
   }
 
   &__name {
+    display: flex;
+    align-items: center;
+    gap: 0.375em;
     font-weight: 500;
   }
 

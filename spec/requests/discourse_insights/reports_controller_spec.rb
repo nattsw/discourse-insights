@@ -30,21 +30,27 @@ describe DiscourseInsights::ReportsController do
         expect(reports.length).to eq(1)
         expect(reports[0]["id"]).to eq(query.id)
         expect(reports[0]["name"]).to eq("Test Query")
+        expect(reports[0]["insights"]).to eq(true)
       end
 
       it "returns user-specific reports when customized" do
         q1 = create_de_query(name: "Query 1")
         q2 = create_de_query(name: "Query 2")
-        PluginStore.set("discourse-insights", "reports_#{admin.id}", [q2.id])
+        PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
+        PluginStore.set("discourse-insights", "reports_#{admin.id}", [q1.id, q2.id])
 
         get "/insights/reports.json"
         reports = response.parsed_body["reports"]
-        expect(reports.length).to eq(1)
-        expect(reports[0]["id"]).to eq(q2.id)
+        expect(reports.length).to eq(2)
+
+        seeded = reports.find { |r| r["id"] == q1.id }
+        custom = reports.find { |r| r["id"] == q2.id }
+        expect(seeded["insights"]).to eq(true)
+        expect(custom["insights"]).to eq(false)
       end
 
       it "skips deleted queries" do
-        PluginStore.set("discourse-insights", "reports_#{admin.id}", [99999])
+        PluginStore.set("discourse-insights", "reports_#{admin.id}", [99_999])
 
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
@@ -145,7 +151,7 @@ describe DiscourseInsights::ReportsController do
     end
 
     it "returns 404 for non-existent query" do
-      post "/insights/reports.json", params: { query_id: 99999 }
+      post "/insights/reports.json", params: { query_id: 99_999 }
       expect(response.status).to eq(404)
     end
   end
@@ -168,11 +174,13 @@ describe DiscourseInsights::ReportsController do
   describe "#available" do
     before { sign_in(admin) }
 
-    it "returns all non-hidden queries with pinned status" do
+    it "returns all non-hidden queries with pinned and insights status" do
       q1 = create_de_query(name: "Public Query")
       q2 = create_de_query(name: "Hidden Query")
       q2.update!(hidden: true)
+      q3 = create_de_query(name: "Custom Query")
 
+      PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
       PluginStore.set("discourse-insights", "reports_#{admin.id}", [q1.id])
 
       get "/insights/reports/available.json"
@@ -184,6 +192,10 @@ describe DiscourseInsights::ReportsController do
 
       pinned = queries.find { |q| q["id"] == q1.id }
       expect(pinned["pinned"]).to eq(true)
+      expect(pinned["insights"]).to eq(true)
+
+      custom = queries.find { |q| q["id"] == q3.id }
+      expect(custom["insights"]).to eq(false)
     end
   end
 end

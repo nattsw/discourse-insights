@@ -75,6 +75,7 @@ en:
         chart_error: "Could not load chart data."
         no_data: "No data available."
         none_available: "All available queries are already added."
+        insights_query_tooltip: "Insights query"
       explore:
         content: "Content Performance"
         content_summary: "Top topics, search terms"
