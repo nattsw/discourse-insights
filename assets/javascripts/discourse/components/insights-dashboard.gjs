@@ -1167,6 +1167,22 @@ export default class InsightsDashboard extends Component {
                     }}</div>
                   <InsightsGeoMap @data={{this.geoBreakdown}} />
                 </div>
+                <div class="insights-geo-upsell">
+                  <div class="insights-geo-upsell__text">
+                    <span class="insights-geo-upsell__title">{{i18n
+                        "discourse_insights.explore.geo_upsell_title"
+                      }}</span>
+                    <span class="insights-geo-upsell__desc">{{i18n
+                        "discourse_insights.explore.geo_upsell_desc"
+                      }}</span>
+                  </div>
+                  <a
+                    href="https://discourse.org/enterprise"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-primary insights-geo-upsell__cta"
+                  >{{i18n "discourse_insights.explore.geo_upsell_cta"}}</a>
+                </div>
               {{/if}}
               <div
                 class="insights-explore__grid
