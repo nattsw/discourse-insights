@@ -191,6 +191,147 @@ module ::DiscourseInsights
         GROUP BY week ORDER BY week
       SQL
     },
+    {
+      name: "Reply Rate by Category",
+      description:
+        "Percentage of topics that received at least one reply, broken down by category. Shows where the community is helping itself and where support gaps exist.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{30.days.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          c.name AS category,
+          ROUND(COUNT(*) FILTER (WHERE t.posts_count > 1) * 100.0 / GREATEST(COUNT(*), 1)) AS reply_rate_pct
+        FROM topics t
+        JOIN categories c ON c.id = t.category_id
+        WHERE t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND t.deleted_at IS NULL
+          AND t.visible = true
+          AND t.archetype = 'regular'
+        GROUP BY c.name
+        HAVING COUNT(*) >= 3
+        ORDER BY reply_rate_pct ASC
+      SQL
+    },
+    {
+      name: "Response Time by Category",
+      description:
+        "Average and median hours to first reply per category. Lower is better. Helps identify which areas need faster responses.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{30.days.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          c.name AS category,
+          ROUND(AVG(hours)::numeric, 1) AS avg_hours,
+          ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY hours)::numeric, 1) AS median_hours
+        FROM (
+          SELECT t.category_id,
+                 EXTRACT(EPOCH FROM MIN(p.created_at) - t.created_at) / 3600.0 AS hours
+          FROM topics t
+          JOIN posts p ON p.topic_id = t.id
+          WHERE t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+            AND p.created_at BETWEEN :start_date AND (:end_date::date + 30)
+            AND t.archetype = 'regular'
+            AND t.deleted_at IS NULL
+            AND p.deleted_at IS NULL
+            AND p.post_number > 1
+            AND p.user_id != t.user_id
+            AND p.post_type = 1
+          GROUP BY t.id, t.category_id
+        ) per_topic
+        JOIN categories c ON c.id = per_topic.category_id
+        GROUP BY c.name
+        ORDER BY median_hours DESC
+      SQL
+    },
+    {
+      name: "Unanswered Topics by Category",
+      description:
+        "Topics with no replies, broken down by category. Highlights where the support gap is biggest.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{30.days.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          c.name AS category,
+          COUNT(*) AS unanswered_topics
+        FROM topics t
+        JOIN categories c ON c.id = t.category_id
+        WHERE t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND t.posts_count = 1
+          AND t.deleted_at IS NULL
+          AND t.visible = true
+          AND t.archetype = 'regular'
+        GROUP BY c.name
+        ORDER BY unanswered_topics DESC
+      SQL
+    },
+    {
+      name: "Member Lifecycle Per Week",
+      description:
+        "Weekly breakdown: returning (active this week and last), new (signed up this week), reactivated (came back after absence), and churned (active last week but not this). Shows community retention health.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          classified.week,
+          COUNT(*) FILTER (WHERE classified.in_cur AND classified.in_prev AND NOT classified.is_new) AS returning,
+          COUNT(*) FILTER (WHERE classified.in_cur AND classified.is_new) AS new,
+          COUNT(*) FILTER (WHERE classified.in_cur AND NOT classified.in_prev AND NOT classified.is_new) AS reactivated,
+          COUNT(*) FILTER (WHERE NOT classified.in_cur AND classified.in_prev) AS churned
+        FROM (
+          SELECT
+            pairs.week_start AS week,
+            pairs.user_id,
+            bool_or(pairs.in_cur) AS in_cur,
+            bool_or(pairs.in_prev) AS in_prev,
+            bool_or(u.created_at >= pairs.week_start AND u.created_at < pairs.week_start + 7) AS is_new
+          FROM (
+            SELECT DATE_TRUNC('week', visited_at)::date AS week_start, user_id,
+                   true AS in_cur, false AS in_prev
+            FROM user_visits
+            WHERE visited_at BETWEEN :start_date::date AND :end_date
+            GROUP BY 1, 2
+            UNION ALL
+            SELECT (DATE_TRUNC('week', visited_at) + '7 days'::interval)::date AS week_start, user_id,
+                   false AS in_cur, true AS in_prev
+            FROM user_visits
+            WHERE visited_at BETWEEN (:start_date::date - 7) AND :end_date
+            GROUP BY 1, 2
+          ) pairs
+          LEFT JOIN users u ON u.id = pairs.user_id
+          GROUP BY pairs.week_start, pairs.user_id
+        ) classified
+        WHERE classified.week BETWEEN DATE_TRUNC('week', :start_date::date)::date
+                                  AND DATE_TRUNC('week', :end_date::date)::date
+        GROUP BY classified.week
+        ORDER BY classified.week
+      SQL
+    },
+    {
+      name: "Moderator vs Community Posts",
+      description:
+        "Weekly count of posts by staff (admins + moderators) vs. community members. A healthy community has a low staff ratio — aim for staff posts under 20% of total.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          DATE_TRUNC('week', p.created_at)::date AS week,
+          COUNT(*) FILTER (WHERE u.admin OR u.moderator) AS staff_posts,
+          COUNT(*) FILTER (WHERE NOT u.admin AND NOT u.moderator) AS community_posts
+        FROM posts p
+        JOIN users u ON u.id = p.user_id
+        WHERE p.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND p.deleted_at IS NULL
+          AND p.post_type = 1
+          AND u.id > 0
+        GROUP BY week
+        ORDER BY week
+      SQL
+    },
   ].freeze
 end
 

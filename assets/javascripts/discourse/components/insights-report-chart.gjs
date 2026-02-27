@@ -423,7 +423,7 @@ export default class InsightsReportChart extends Component {
               class="insights-report-chart__de-link"
               aria-label={{i18n "discourse_insights.reports.open_in_data_explorer"}}
             >
-              {{icon "external-link-alt"}}
+              {{icon "up-right-from-square"}}
             </a>
           </div>
           <div
