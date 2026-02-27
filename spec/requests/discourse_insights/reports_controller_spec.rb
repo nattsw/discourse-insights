@@ -179,12 +179,38 @@ describe DiscourseInsights::ReportsController do
       query = create_de_query
 
       RateLimiter.enable
-      10.times do
+      30.times do
         get "/insights/reports/#{query.id}/run.json"
         expect(response.status).to eq(200)
       end
       get "/insights/reports/#{query.id}/run.json"
       expect(response.status).to eq(429)
+    end
+
+    it "caches results for the same query and params" do
+      query = create_de_query(sql: "SELECT 1 AS value")
+
+      get "/insights/reports/#{query.id}/run.json"
+      expect(response.status).to eq(200)
+      first_body = response.parsed_body
+
+      get "/insights/reports/#{query.id}/run.json"
+      expect(response.status).to eq(200)
+      expect(response.parsed_body).to eq(first_body)
+    end
+
+    it "caches separately per date params" do
+      query =
+        create_de_query(
+          sql:
+            "-- [params]\n-- date :start_date = 2025-01-01\nSELECT :start_date::date AS d",
+        )
+
+      get "/insights/reports/#{query.id}/run.json", params: { start_date: "2026-01-01" }
+      expect(response.parsed_body["rows"].first).to eq(%w[2026-01-01])
+
+      get "/insights/reports/#{query.id}/run.json", params: { start_date: "2026-02-01" }
+      expect(response.parsed_body["rows"].first).to eq(%w[2026-02-01])
     end
 
     context "when user is a non-admin in insights allowed group" do

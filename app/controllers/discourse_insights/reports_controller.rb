@@ -41,7 +41,7 @@ module ::DiscourseInsights
       RateLimiter.new(
         current_user,
         "insights-run-report",
-        10,
+        30,
         1.minute,
         apply_limit_to_staff: true,
       ).performed!
@@ -49,6 +49,13 @@ module ::DiscourseInsights
       query_params = {}
       query.params.each do |p|
         query_params[p.identifier] = params[p.identifier] if params[p.identifier].present?
+      end
+
+      cache_key = "insights_report_#{query_id}_#{query_params.sort.to_h.values.join("_")}"
+      cached = Discourse.cache.read(cache_key)
+      if cached
+        render json: cached
+        return
       end
 
       result =
@@ -64,7 +71,9 @@ module ::DiscourseInsights
       end
 
       pg = result[:pg_result]
-      render json: { columns: pg.fields, rows: pg.values }
+      response = { columns: pg.fields, rows: pg.values }
+      Discourse.cache.write(cache_key, response, expires_in: 35.minutes)
+      render json: response
     end
 
     def add
