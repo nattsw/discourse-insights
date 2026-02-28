@@ -65,6 +65,34 @@ module ::DiscourseInsights
         ORDER BY ar.date
       SQL
     },
+    {
+      name: "Category Deep Dive",
+      description:
+        "Weekly new topics, replies, and likes for a single category. Use the category picker to switch between categories.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        -- category_id :category_id = 1
+        SELECT
+          DATE_TRUNC('week', t.created_at)::date AS week,
+          COUNT(DISTINCT t.id) AS new_topics,
+          COUNT(DISTINCT p.id) FILTER (WHERE p.post_number > 1) AS replies,
+          COALESCE(SUM(p.like_count) FILTER (WHERE p.post_number > 1), 0) AS likes
+        FROM topics t
+        LEFT JOIN posts p ON p.topic_id = t.id
+          AND p.deleted_at IS NULL
+          AND p.post_type = 1
+          AND p.created_at BETWEEN :start_date AND (:end_date::date + 1)
+        WHERE t.category_id = :category_id
+          AND t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND t.deleted_at IS NULL
+          AND t.visible = true
+          AND t.archetype = 'regular'
+        GROUP BY week
+        ORDER BY week
+      SQL
+    },
     { name: "Posts Per Week", description: "Posts created per week.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}

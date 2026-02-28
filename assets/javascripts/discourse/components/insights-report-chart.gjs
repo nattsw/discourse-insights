@@ -5,6 +5,7 @@ import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
 import { eq } from "discourse/truth-helpers";
+import CategoryChooser from "discourse/select-kit/components/category-chooser";
 import DButton from "discourse/components/d-button";
 import icon from "discourse/helpers/d-icon";
 import { ajax } from "discourse/lib/ajax";
@@ -272,7 +273,7 @@ export default class InsightsReportChart extends Component {
     if (!this.queryParams) {
       return [];
     }
-    const editableTypes = ["date", "int", "bigint", "double", "string", "boolean"];
+    const editableTypes = ["date", "int", "bigint", "double", "string", "boolean", "category_id"];
     return this.queryParams.map((p) => ({
       identifier: p.identifier,
       type: p.type,
@@ -281,6 +282,7 @@ export default class InsightsReportChart extends Component {
       inputType: this._inputTypeFor(p.type),
       inputStep: this._inputStepFor(p.type),
       isCheckbox: p.type === "boolean",
+      isCategory: p.type === "category_id",
     }));
   }
 
@@ -317,6 +319,12 @@ export default class InsightsReportChart extends Component {
         : event.target.value;
     this.editableParams = new Map(this.editableParams);
     this.editableParams.set(identifier, val);
+  }
+
+  @action
+  updateCategoryParam(identifier, categoryId) {
+    this.editableParams = new Map(this.editableParams);
+    this.editableParams.set(identifier, categoryId ? String(categoryId) : "");
   }
 
   @action
@@ -437,7 +445,13 @@ export default class InsightsReportChart extends Component {
                     {{#if p.editable}}
                       <label class="insights-report-chart__param-field">
                         <span class="insights-report-chart__param-label">{{p.identifier}}</span>
-                        {{#if p.isCheckbox}}
+                        {{#if p.isCategory}}
+                          <CategoryChooser
+                            @value={{p.value}}
+                            @onChange={{fn this.updateCategoryParam p.identifier}}
+                            class="insights-report-chart__param-input insights-report-chart__param-category"
+                          />
+                        {{else if p.isCheckbox}}
                           <input
                             type="checkbox"
                             checked={{eq p.value "true"}}

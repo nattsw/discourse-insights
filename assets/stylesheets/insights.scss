@@ -879,6 +879,10 @@
     height: auto;
   }
 
+  &__param-category {
+    min-width: 12em;
+  }
+
   &__param-chip {
     display: inline-block;
     font-size: var(--font-down-2);
