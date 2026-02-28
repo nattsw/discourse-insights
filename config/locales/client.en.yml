@@ -75,6 +75,8 @@ en:
         chart_error: "Could not load chart data."
         no_data: "No data available."
         none_available: "All available queries are already added."
+        no_matching: "No reports match your filter."
+        filter_placeholder: "Filter reports..."
         insights_query_tooltip: "Insights query"
         run: "Run"
         show_data: "Show data"

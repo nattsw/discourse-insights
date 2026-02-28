@@ -1,6 +1,7 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
 import { fn } from "@ember/helper";
+import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import DButton from "discourse/components/d-button";
 import DModal from "discourse/components/d-modal";
@@ -11,6 +12,7 @@ import { i18n } from "discourse-i18n";
 export default class AddReportModal extends Component {
   @tracked queries = null;
   @tracked loading = true;
+  @tracked filter = "";
 
   constructor() {
     super(...arguments);
@@ -39,6 +41,21 @@ export default class AddReportModal extends Component {
       });
   }
 
+  get filteredQueries() {
+    const term = this.filter.toLowerCase().trim();
+    if (!term) {
+      return this.unpinnedQueries;
+    }
+    return this.unpinnedQueries.filter((q) =>
+      q.name.toLowerCase().includes(term)
+    );
+  }
+
+  @action
+  onFilterChange(event) {
+    this.filter = event.target.value;
+  }
+
   @action
   async addQuery(queryId) {
     try {
@@ -65,34 +82,49 @@ export default class AddReportModal extends Component {
             <div class="spinner medium"></div>
           </div>
         {{else if this.unpinnedQueries.length}}
-          <ul class="add-report-modal__list">
-            {{#each this.unpinnedQueries as |query|}}
-              <li class="add-report-modal__item">
-                <div class="add-report-modal__info">
-                  <span class="add-report-modal__name">
-                    {{#if query.insights}}<span
-                        class="insights-sparkle-badge"
-                        title={{i18n
-                          "discourse_insights.reports.insights_query_tooltip"
-                        }}
-                      >✦</span>{{/if}}
-                    {{query.name}}
-                  </span>
-                  {{#if query.description}}
-                    <span
-                      class="add-report-modal__desc"
-                    >{{query.description}}</span>
-                  {{/if}}
-                </div>
-                <DButton
-                  class="btn-small btn-primary"
-                  @action={{fn this.addQuery query.id}}
-                  @icon="plus"
-                  @label="discourse_insights.reports.add"
-                />
-              </li>
-            {{/each}}
-          </ul>
+          <input
+            class="add-report-modal__filter"
+            type="text"
+            value={{this.filter}}
+            placeholder={{i18n
+              "discourse_insights.reports.filter_placeholder"
+            }}
+            {{on "input" this.onFilterChange}}
+          />
+          {{#if this.filteredQueries.length}}
+            <ul class="add-report-modal__list">
+              {{#each this.filteredQueries as |query|}}
+                <li class="add-report-modal__item">
+                  <div class="add-report-modal__info">
+                    <span class="add-report-modal__name">
+                      {{#if query.insights}}<span
+                          class="insights-sparkle-badge"
+                          title={{i18n
+                            "discourse_insights.reports.insights_query_tooltip"
+                          }}
+                        >✦</span>{{/if}}
+                      {{query.name}}
+                    </span>
+                    {{#if query.description}}
+                      <span
+                        class="add-report-modal__desc"
+                      >{{query.description}}</span>
+                    {{/if}}
+                  </div>
+                  <DButton
+                    class="btn-small btn-primary"
+                    @action={{fn this.addQuery query.id}}
+                    @icon="plus"
+                    @label="discourse_insights.reports.add"
+                  />
+                </li>
+              {{/each}}
+            </ul>
+          {{else}}
+            <p class="add-report-modal__empty">
+              {{i18n "discourse_insights.reports.no_matching"}}
+            </p>
+          {{/if}}
         {{else}}
           <p class="add-report-modal__empty">
             {{i18n "discourse_insights.reports.none_available"}}
