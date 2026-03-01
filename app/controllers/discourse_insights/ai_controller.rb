@@ -3,6 +3,7 @@
 module ::DiscourseInsights
   class AiController < ::ApplicationController
     requires_plugin PLUGIN_NAME
+    include DiscourseInsights::AccessControl
 
     before_action :ensure_logged_in
     before_action :ensure_allowed
@@ -59,12 +60,6 @@ module ::DiscourseInsights
         period = params[:period]
         period = "30d" unless DashboardData::PERIODS.key?(period)
         { period: period }
-      end
-    end
-
-    def ensure_allowed
-      unless current_user.in_any_groups?(SiteSetting.insights_allowed_groups_map)
-        raise Discourse::InvalidAccess
       end
     end
 

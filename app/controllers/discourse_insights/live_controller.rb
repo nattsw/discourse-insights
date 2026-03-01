@@ -3,6 +3,7 @@
 module ::DiscourseInsights
   class LiveController < ::ApplicationController
     requires_plugin PLUGIN_NAME
+    include DiscourseInsights::AccessControl
 
     before_action :ensure_logged_in
     before_action :ensure_allowed
@@ -23,12 +24,6 @@ module ::DiscourseInsights
     end
 
     private
-
-    def ensure_allowed
-      unless current_user.in_any_groups?(SiteSetting.insights_allowed_groups_map)
-        raise Discourse::InvalidAccess
-      end
-    end
 
     def compute
       result = {

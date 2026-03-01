@@ -3,34 +3,15 @@
 module ::DiscourseInsights
   class ReportsController < ::ApplicationController
     requires_plugin PLUGIN_NAME
+    include DiscourseInsights::AccessControl
 
     before_action :ensure_logged_in
     before_action :ensure_allowed
     before_action :ensure_data_explorer
 
     def index
-      query_ids = user_report_ids
-      queries =
-        query_ids.filter_map do |id|
-          begin
-            query = DiscourseDataExplorer::Query.find(id)
-            query if !query.hidden && guardian.user_can_access_query?(query)
-          rescue ActiveRecord::RecordNotFound
-            nil
-          end
-        end
-
-      render json: {
-               reports:
-                 queries.map do |q|
-                   {
-                     id: q.id,
-                     name: q.name,
-                     description: q.description,
-                     insights: seeded_query_id_set.include?(q.id),
-                   }
-                 end,
-             }
+      list = report_list
+      render json: { reports: list.user_reports.map { |q| serialize_query(q, list) } }
     end
 
     def run
@@ -46,46 +27,14 @@ module ::DiscourseInsights
         apply_limit_to_staff: true,
       ).performed!
 
-      query_params = {}
-      query.params.each do |p|
-        query_params[p.identifier] = params[p.identifier] if params[p.identifier].present?
+      runner = InsightsReportRunner.new(query, current_user, params.to_unsafe_h)
+      render json: runner.run
+    rescue StandardError => e
+      if e.is_a?(Discourse::NotFound) || e.is_a?(RateLimiter::LimitExceeded) ||
+           e.is_a?(ActiveRecord::RecordNotFound)
+        raise e
       end
-
-      cache_key = "insights_report_#{query_id}_#{query_params.sort.to_h.values.join("_")}"
-      cached = Discourse.cache.read(cache_key)
-      if cached
-        render json: cached
-        return
-      end
-
-      result =
-        DiscourseDataExplorer::DataExplorer.run_query(
-          query,
-          query_params,
-          { current_user: current_user, limit: 1000 },
-        )
-
-      if result[:error]
-        render json: { error: result[:error].message }, status: :unprocessable_entity
-        return
-      end
-
-      pg = result[:pg_result]
-      response = {
-        columns: pg.fields,
-        rows: pg.values,
-        params:
-          query.params.map do |p|
-            {
-              identifier: p.identifier,
-              type: p.type,
-              default: p.default,
-              value: query_params[p.identifier],
-            }
-          end,
-      }
-      Discourse.cache.write(cache_key, response, expires_in: 35.minutes)
-      render json: response
+      render json: { error: e.message }, status: :unprocessable_entity
     end
 
     def add
@@ -93,66 +42,39 @@ module ::DiscourseInsights
       query = DiscourseDataExplorer::Query.find(query_id)
       raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
 
-      ids = user_report_ids
-      if ids.exclude?(query_id)
-        ids << query_id
-        save_user_report_ids(ids)
-      end
-
+      report_list.add_report(query_id)
       render json: { success: true }
     end
 
     def remove
-      query_id = params[:id].to_i
-      ids = user_report_ids
-      ids.delete(query_id)
-      save_user_report_ids(ids)
-
+      report_list.remove_report(params[:id].to_i)
       render json: { success: true }
     end
 
     def available
-      all_queries = DiscourseDataExplorer::Query.includes(:groups).where(hidden: false).order(:name)
-      pinned = user_report_ids
+      list = report_list
+      pinned = list.user_report_ids
 
       render json: {
-               queries:
-                 all_queries
-                   .select { |q| guardian.user_can_access_query?(q) }
-                   .map do |q|
-                     {
-                       id: q.id,
-                       name: q.name,
-                       description: q.description,
-                       pinned: pinned.include?(q.id),
-                       insights: seeded_query_id_set.include?(q.id),
-                     }
-                   end,
+               queries: list.available_reports.map do |q| serialize_query(q, list, pinned:) end,
              }
     end
 
     private
 
-    def user_report_ids
-      PluginStore.get(PLUGIN_NAME, "reports_#{current_user.id}") || default_report_ids
+    def report_list
+      @report_list ||= InsightsReportList.new(current_user, guardian)
     end
 
-    def save_user_report_ids(ids)
-      PluginStore.set(PLUGIN_NAME, "reports_#{current_user.id}", ids)
-    end
-
-    def default_report_ids
-      (PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || []).first(4)
-    end
-
-    def seeded_query_id_set
-      @seeded_query_id_set ||= Set.new(PluginStore.get(PLUGIN_NAME, "seeded_query_ids") || [])
-    end
-
-    def ensure_allowed
-      unless current_user.in_any_groups?(SiteSetting.insights_allowed_groups_map)
-        raise Discourse::InvalidAccess
-      end
+    def serialize_query(query, list, pinned: nil)
+      result = {
+        id: query.id,
+        name: query.name,
+        description: query.description,
+        insights: list.seeded_query_ids.include?(query.id),
+      }
+      result[:pinned] = pinned.include?(query.id) if pinned
+      result
     end
 
     def ensure_data_explorer
