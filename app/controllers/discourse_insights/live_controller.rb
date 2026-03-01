@@ -49,8 +49,7 @@ module ::DiscourseInsights
     end
 
     def detect_activity_tier
-      recent_posts =
-        DB.query_single(<<~SQL).first
+      recent_posts = DB.query_single(<<~SQL).first
           SELECT COUNT(*)
           FROM posts p
           JOIN topics t ON t.id = p.topic_id

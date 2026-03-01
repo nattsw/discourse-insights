@@ -86,9 +86,7 @@ export default class AddReportModal extends Component {
             class="insights-add-report-modal__filter"
             type="text"
             value={{this.filter}}
-            placeholder={{i18n
-              "discourse_insights.reports.filter_placeholder"
-            }}
+            placeholder={{i18n "discourse_insights.reports.filter_placeholder"}}
             {{on "input" this.onFilterChange}}
           />
           {{#if this.filteredQueries.length}}

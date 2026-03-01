@@ -234,7 +234,8 @@ export default class InsightsSummary extends Component {
           solve_rate: solved.solve_rate ?? 0,
           response_rate: this.args.data.metrics?.response_rate?.current ?? 0,
           avg_hours:
-            this.args.data.metrics?.response_rate?.avg_first_response_hours ?? 0,
+            this.args.data.metrics?.response_rate?.avg_first_response_hours ??
+            0,
         });
       }
       case "stakeholder":
@@ -441,8 +442,7 @@ export default class InsightsSummary extends Component {
               {{#if this.expandedMetricData.unanswered_count}}
                 <span class="insights-detail-panel__stat">
                   {{i18n "discourse_insights.detail.unanswered"}}
-                  <strong
-                  >{{this.expandedMetricData.unanswered_count}}</strong>
+                  <strong>{{this.expandedMetricData.unanswered_count}}</strong>
                 </span>
               {{/if}}
               {{#if this.expandedMetricData.solve_rate}}
@@ -495,10 +495,7 @@ export default class InsightsSummary extends Component {
       </div>
 
       {{#if @aiAvailable}}
-        <form
-          class="insights-ask"
-          {{on "submit" this.submitCustomQuestion}}
-        >
+        <form class="insights-ask" {{on "submit" this.submitCustomQuestion}}>
           <input
             type="text"
             class="insights-ask__input"

@@ -146,16 +146,13 @@ export default class InsightsLiveSection extends Component {
 
         {{#if this.hotCategories.length}}
           <div class="insights-live__section">
-            <div
-              class="insights-live__section-title"
-            >{{i18n "discourse_insights.live.hot_categories"}}</div>
+            <div class="insights-live__section-title">{{i18n
+                "discourse_insights.live.hot_categories"
+              }}</div>
             <div class="insights-live__hot-cats">
               {{#each this.hotCategories as |cat|}}
                 <span class="insights-live__hot-cat">
-                  <span
-                    class="insights-cat-dot"
-                    style={{cat.dotStyle}}
-                  ></span>
+                  <span class="insights-cat-dot" style={{cat.dotStyle}}></span>
                   {{cat.name}}
                   <span
                     class="insights-live__hot-cat-count"
@@ -172,16 +169,13 @@ export default class InsightsLiveSection extends Component {
 
         {{#if this.hotChatChannels.length}}
           <div class="insights-live__section">
-            <div
-              class="insights-live__section-title"
-            >{{i18n "discourse_insights.live.hot_chat_channels"}}</div>
+            <div class="insights-live__section-title">{{i18n
+                "discourse_insights.live.hot_chat_channels"
+              }}</div>
             <div class="insights-live__hot-cats">
               {{#each this.hotChatChannels as |ch|}}
                 <span class="insights-live__hot-cat">
-                  <span
-                    class="insights-cat-dot"
-                    style={{ch.dotStyle}}
-                  ></span>
+                  <span class="insights-cat-dot" style={{ch.dotStyle}}></span>
                   <a href={{ch.url}}>{{ch.name}}</a>
                   <span
                     class="insights-live__hot-cat-count"
@@ -197,9 +191,9 @@ export default class InsightsLiveSection extends Component {
         {{/if}}
 
         <div class="insights-live__section">
-          <div
-            class="insights-live__section-title"
-          >{{i18n "discourse_insights.live.activity"}}</div>
+          <div class="insights-live__section-title">{{i18n
+              "discourse_insights.live.activity"
+            }}</div>
           {{#if this.stream.length}}
             <ul class="insights-live__stream">
               {{#each this.stream as |item|}}

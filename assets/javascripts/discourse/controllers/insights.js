@@ -1,10 +1,10 @@
-import Controller from "@ember/controller";
 import { tracked } from "@glimmer/tracking";
+import Controller from "@ember/controller";
 
 export default class InsightsController extends Controller {
-  queryParams = ["period", "start_date", "end_date"];
-
+  @tracked end_date = null;
   @tracked period = null;
   @tracked start_date = null;
-  @tracked end_date = null;
+
+  queryParams = ["period", "start_date", "end_date"];
 }

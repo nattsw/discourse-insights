@@ -182,10 +182,7 @@ describe DiscourseInsights::ReportsController do
             "-- [params]\n-- date :start_date = 2025-01-01\n-- date :end_date = 2025-12-31\nSELECT :start_date::date AS d1, :end_date::date AS d2",
         )
 
-      get "/insights/reports/#{query.id}/run.json",
-          params: {
-            start_date: "2026-03-01",
-          }
+      get "/insights/reports/#{query.id}/run.json", params: { start_date: "2026-03-01" }
       expect(response.status).to eq(200)
 
       params = response.parsed_body["params"]

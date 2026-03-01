@@ -59,8 +59,8 @@ export default class InsightsReportChart extends Component {
   @tracked editableParams = new Map();
   @tracked dragCssClass;
   chart = null;
-_dragCount = 0;
-  
+  _dragCount = 0;
+
   _canvas = null;
 
   constructor() {
@@ -281,7 +281,15 @@ _dragCount = 0;
     if (!this.queryParams) {
       return [];
     }
-    const editableTypes = ["date", "int", "bigint", "double", "string", "boolean", "category_id"];
+    const editableTypes = [
+      "date",
+      "int",
+      "bigint",
+      "double",
+      "string",
+      "boolean",
+      "category_id",
+    ];
     return this.queryParams.map((p) => ({
       identifier: p.identifier,
       type: p.type,
@@ -459,7 +467,9 @@ _dragCount = 0;
       <div class="insights-report-chart__header">
         <div class="insights-report-chart__title-wrap">
           {{#if this.site.desktopView}}
-            <span class="insights-report-chart__grip">{{icon "grip-lines"}}</span>
+            <span class="insights-report-chart__grip">{{icon
+                "grip-lines"
+              }}</span>
           {{/if}}
           {{#if @report.insights}}<span
               class="insights-sparkle-badge"
@@ -499,19 +509,29 @@ _dragCount = 0;
               {{on "click" this.toggleTable}}
             >
               {{icon (if this.showTable "chevron-down" "chevron-right")}}
-              {{if this.showTable (i18n "discourse_insights.reports.hide_data") (i18n "discourse_insights.reports.show_data")}}
+              {{if
+                this.showTable
+                (i18n "discourse_insights.reports.hide_data")
+                (i18n "discourse_insights.reports.show_data")
+              }}
             </button>
             <a
               href={{this.queryUrl}}
               class="insights-report-chart__de-link"
-              aria-label={{i18n "discourse_insights.reports.open_in_data_explorer"}}
+              aria-label={{i18n
+                "discourse_insights.reports.open_in_data_explorer"
+              }}
             >
               {{icon "up-right-from-square"}}
             </a>
           </div>
           <div
             id={{this.tableWrapId}}
-            class={{if this.showTable "insights-report-chart__table-wrap insights-report-chart__table-wrap--open" "insights-report-chart__table-wrap"}}
+            class={{if
+              this.showTable
+              "insights-report-chart__table-wrap insights-report-chart__table-wrap--open"
+              "insights-report-chart__table-wrap"
+            }}
           >
             {{#if this.showTable}}
               {{#if this.hasParams}}
@@ -519,11 +539,16 @@ _dragCount = 0;
                   {{#each this.editableParamFields as |p|}}
                     {{#if p.editable}}
                       <label class="insights-report-chart__param-field">
-                        <span class="insights-report-chart__param-label">{{p.identifier}}</span>
+                        <span
+                          class="insights-report-chart__param-label"
+                        >{{p.identifier}}</span>
                         {{#if p.isCategory}}
                           <CategoryChooser
                             @value={{p.value}}
-                            @onChange={{fn this.updateCategoryParam p.identifier}}
+                            @onChange={{fn
+                              this.updateCategoryParam
+                              p.identifier
+                            }}
                             class="insights-report-chart__param-input insights-report-chart__param-category"
                           />
                         {{else if p.isCheckbox}}
@@ -544,7 +569,9 @@ _dragCount = 0;
                         {{/if}}
                       </label>
                     {{else}}
-                      <span class="insights-report-chart__param-chip">{{p.identifier}}: {{p.value}}</span>
+                      <span
+                        class="insights-report-chart__param-chip"
+                      >{{p.identifier}}: {{p.value}}</span>
                     {{/if}}
                   {{/each}}
                   <DButton

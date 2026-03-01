@@ -79,9 +79,9 @@ export default class InsightsDashboard extends Component {
   _livePollTimer = null;
 
   // drag reorder
-_draggedReport = null;
+  _draggedReport = null;
 
-constructor() {
+  constructor() {
     super(...arguments);
 
     const p = this.args.routeParams;
@@ -491,10 +491,6 @@ constructor() {
     }
   }
 
-  
-
-  
-
   @action
   setDraggedReport(report) {
     this._draggedReport = report;
@@ -634,9 +630,7 @@ constructor() {
                 <DTooltip
                   class="insights-reports-info"
                   @icon="circle-info"
-                  @content={{i18n
-                    "discourse_insights.reports.personal_hint"
-                  }}
+                  @content={{i18n "discourse_insights.reports.personal_hint"}}
                 />
               </:title>
               <:body>
@@ -712,9 +706,7 @@ constructor() {
                             }}</span>
                         {{/if}}
                       </td>
-                      <td
-                        class="insights-rank-table__value"
-                      >{{term.count}}</td>
+                      <td class="insights-rank-table__value">{{term.count}}</td>
                       <td class="insights-rank-table__meta">{{i18n
                           "discourse_insights.explore.ctr"
                           value=term.ctr
@@ -843,9 +835,7 @@ constructor() {
                       <td>{{cat.new_topics}}</td>
                       <td>{{cat.replies}}</td>
                       <td>
-                        <span
-                          class={{cat.trendClass}}
-                        >{{cat.trendText}}</span>
+                        <span class={{cat.trendClass}}>{{cat.trendText}}</span>
                       </td>
                     </tr>
                   {{/each}}
