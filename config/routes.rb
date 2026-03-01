@@ -10,6 +10,7 @@ DiscourseInsights::Engine.routes.draw do
   post "/reports" => "reports#add"
   put "/reports/reorder" => "reports#reorder"
   delete "/reports/:id" => "reports#remove"
+  post "/feedback" => "feedback#create"
 end
 
 Discourse::Application.routes.draw do

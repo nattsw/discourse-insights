@@ -138,3 +138,7 @@ en:
         new_topics: "New Topics"
         replies: "Replies"
         trend: "Trend"
+      feedback:
+        placeholder: "Share your suggestions for Insights..."
+        submit: "Send"
+        thanks: "Thanks for your insight! ✨"

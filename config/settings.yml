@@ -12,6 +12,11 @@ discourse_insights:
     default: 24
     min: 1
     max: 168
+  insights_feedback_notify_group:
+    type: group_list
+    list_type: compact
+    default: ""
+    allow_any: false
   insights_live_enhanced:
     default: false
     client: true

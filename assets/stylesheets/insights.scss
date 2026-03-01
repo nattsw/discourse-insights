@@ -1271,6 +1271,51 @@
   }
 }
 
+// Feedback
+.insights-feedback {
+  margin-top: 1.5em;
+  background: var(--secondary);
+  border: 1px solid var(--primary-low);
+  border-radius: var(--d-border-radius);
+  padding: 1.25em;
+
+  &__textarea {
+    width: 100%;
+    min-height: 5em;
+    resize: vertical;
+    border: 1px solid var(--primary-low);
+    border-radius: var(--d-border-radius);
+    padding: 0.75em;
+    font-size: var(--font-0);
+    background: var(--primary-very-low);
+    color: var(--primary);
+
+    &::placeholder {
+      color: var(--primary-medium);
+    }
+
+    &:focus {
+      border-color: var(--tertiary);
+      outline: none;
+      background: var(--secondary);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.625em;
+  }
+
+  &__thanks {
+    text-align: center;
+    color: var(--primary-medium);
+    font-size: var(--font-0);
+    margin: 0;
+    padding: 0.5em 0;
+  }
+}
+
 // Mobile
 @media (width <= 768px) {
   .insights-header {

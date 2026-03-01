@@ -16,6 +16,7 @@ import InsightsCategoriesSection from "./insights-categories-section";
 import InsightsContentSection from "./insights-content-section";
 import InsightsDateRangeModal from "./insights-date-range-modal";
 import InsightsExploreSection from "./insights-explore-section";
+import InsightsFeedback from "./insights-feedback";
 import InsightsHeader from "./insights-header";
 import InsightsLiveSection from "./insights-live-section";
 import InsightsReportsSection from "./insights-reports-section";
@@ -258,6 +259,8 @@ export default class InsightsDashboard extends Component {
             <InsightsCategoriesSection @data={{this.data}} />
           </:body>
         </InsightsExploreSection>
+
+        <InsightsFeedback />
       {{/if}}
     </div>
   </template>

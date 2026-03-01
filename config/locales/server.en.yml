@@ -3,8 +3,12 @@ en:
     ai_persona:
       name: "Insights Advisor"
       description: "Synthesizes community health metrics into actionable insights for community managers and stakeholders."
+    feedback_pm:
+      title: "New Insights feedback"
+      item: "@%{username} said:\n\n> %{comment}"
   site_settings:
     insights_enabled: "Enable the Insights page."
     insights_allowed_groups: "Groups allowed to view the Insights page."
     insights_unanswered_threshold_hours: "Hours before a topic is considered unanswered in attention alerts."
+    insights_feedback_notify_group: "Groups to notify via PM when Insights feedback is submitted. Feedback is stored until a group is selected."
     insights_live_enhanced: "Enable supercharged Live View with enhanced user tracking. The basic Live View section works without this setting."
