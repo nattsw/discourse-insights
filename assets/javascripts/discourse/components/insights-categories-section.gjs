@@ -1,7 +1,12 @@
 import Component from "@glimmer/component";
+import { tracked } from "@glimmer/tracking";
+import { on } from "@ember/modifier";
+import { action } from "@ember/object";
 import { htmlSafe } from "@ember/template";
 import number from "discourse/helpers/number";
 import { i18n } from "discourse-i18n";
+
+const VISIBLE_ROWS = 5;
 
 function formatTrendText(pct) {
   if (pct > 0) {
@@ -24,6 +29,8 @@ function trendCssClass(pct) {
 }
 
 export default class InsightsCategoriesSection extends Component {
+  @tracked expanded = false;
+
   get categories() {
     return (this.args.data?.categories ?? []).map((cat) => ({
       ...cat,
@@ -31,6 +38,22 @@ export default class InsightsCategoriesSection extends Component {
       trendText: formatTrendText(cat.trend_pct),
       trendClass: trendCssClass(cat.trend_pct),
     }));
+  }
+
+  get visibleCategories() {
+    if (this.expanded) {
+      return this.categories;
+    }
+    return this.categories.slice(0, VISIBLE_ROWS);
+  }
+
+  get hasMore() {
+    return this.categories.length > VISIBLE_ROWS;
+  }
+
+  @action
+  toggle() {
+    this.expanded = !this.expanded;
   }
 
   <template>
@@ -46,7 +69,7 @@ export default class InsightsCategoriesSection extends Component {
           </tr>
         </thead>
         <tbody>
-          {{#each this.categories as |cat|}}
+          {{#each this.visibleCategories as |cat|}}
             <tr>
               <td>
                 <span class="insights-cat-dot" style={{cat.dotStyle}}></span>
@@ -60,6 +83,20 @@ export default class InsightsCategoriesSection extends Component {
               </td>
             </tr>
           {{/each}}
+          {{#if this.hasMore}}
+            <tr
+              class="insights-cat-table__more"
+              role="button"
+              {{on "click" this.toggle}}
+            >
+              <td colspan="5">
+                <span
+                  class="insights-cat-table__more-icon
+                    {{if this.expanded 'insights-cat-table__more-icon--up'}}"
+                >›</span>
+              </td>
+            </tr>
+          {{/if}}
         </tbody>
       </table>
     </div>

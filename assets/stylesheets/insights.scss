@@ -551,6 +551,26 @@
     padding-left: 0.5em;
     white-space: nowrap;
   }
+
+  &__more {
+    cursor: pointer;
+    color: var(--primary-medium);
+
+    td {
+      text-align: center;
+    }
+  }
+
+  &__more-icon {
+    display: inline-block;
+    transform: rotate(90deg);
+    font-size: var(--font-up-1);
+    transition: transform 0.2s ease;
+
+    &--up {
+      transform: rotate(-90deg);
+    }
+  }
 }
 
 .insights-topic-link {
@@ -609,6 +629,26 @@
 
   tbody tr:last-child td {
     border-bottom: none;
+  }
+
+  &__more {
+    cursor: pointer;
+    color: var(--primary-medium);
+
+    td {
+      text-align: center;
+    }
+  }
+
+  &__more-icon {
+    display: inline-block;
+    transform: rotate(90deg);
+    font-size: var(--font-up-1);
+    transition: transform 0.2s ease;
+
+    &--up {
+      transform: rotate(-90deg);
+    }
   }
 }
 
