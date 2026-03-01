@@ -44,7 +44,8 @@ module ::DiscourseInsights
     end
 
     def user_report_ids
-      PluginStore.get(PLUGIN_NAME, "reports_#{@user.id}") || default_report_ids
+      ids = @user.custom_fields[DiscourseInsights::REPORT_IDS_CUSTOM_FIELD]
+      ids.presence || default_report_ids
     end
 
     def seeded_query_ids
@@ -54,7 +55,8 @@ module ::DiscourseInsights
     private
 
     def save_user_report_ids(ids)
-      PluginStore.set(PLUGIN_NAME, "reports_#{@user.id}", ids)
+      @user.custom_fields[DiscourseInsights::REPORT_IDS_CUSTOM_FIELD] = ids
+      @user.save_custom_fields
     end
 
     def default_report_ids

@@ -40,7 +40,8 @@ describe DiscourseInsights::ReportsController do
         q1 = create_de_query(name: "Query 1")
         q2 = create_de_query(name: "Query 2")
         PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
-        PluginStore.set("discourse-insights", "reports_#{admin.id}", [q1.id, q2.id])
+        admin.custom_fields["insights_report_ids"] = [q1.id, q2.id]
+        admin.save_custom_fields
 
         get "/insights/reports.json"
         reports = response.parsed_body["reports"]
@@ -53,7 +54,8 @@ describe DiscourseInsights::ReportsController do
       end
 
       it "skips deleted queries" do
-        PluginStore.set("discourse-insights", "reports_#{admin.id}", [99_999])
+        admin.custom_fields["insights_report_ids"] = [99_999]
+        admin.save_custom_fields
 
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
@@ -62,7 +64,8 @@ describe DiscourseInsights::ReportsController do
       it "filters out hidden queries" do
         query = create_de_query
         query.update!(hidden: true)
-        PluginStore.set("discourse-insights", "reports_#{admin.id}", [query.id])
+        admin.custom_fields["insights_report_ids"] = [query.id]
+        admin.save_custom_fields
 
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
@@ -86,11 +89,8 @@ describe DiscourseInsights::ReportsController do
         other_group = Fabricate(:group)
         DiscourseDataExplorer::QueryGroup.create!(query_id: restricted.id, group_id: other_group.id)
 
-        PluginStore.set(
-          "discourse-insights",
-          "reports_#{member.id}",
-          [accessible.id, restricted.id],
-        )
+        member.custom_fields["insights_report_ids"] = [accessible.id, restricted.id]
+        member.save_custom_fields
 
         get "/insights/reports.json"
         names = response.parsed_body["reports"].map { |r| r["name"] }
@@ -285,18 +285,19 @@ describe DiscourseInsights::ReportsController do
       post "/insights/reports.json", params: { query_id: query.id }
       expect(response.status).to eq(200)
 
-      ids = PluginStore.get("discourse-insights", "reports_#{admin.id}")
+      ids = admin.reload.custom_fields["insights_report_ids"]
       expect(ids).to include(query.id)
     end
 
     it "does not duplicate an already-added query" do
       query = create_de_query
-      PluginStore.set("discourse-insights", "reports_#{admin.id}", [query.id])
+      admin.custom_fields["insights_report_ids"] = [query.id]
+      admin.save_custom_fields
 
       post "/insights/reports.json", params: { query_id: query.id }
       expect(response.status).to eq(200)
 
-      ids = PluginStore.get("discourse-insights", "reports_#{admin.id}")
+      ids = admin.reload.custom_fields["insights_report_ids"]
       expect(ids.count(query.id)).to eq(1)
     end
 
@@ -319,12 +320,13 @@ describe DiscourseInsights::ReportsController do
 
     it "removes a query from the user's reports" do
       query = create_de_query
-      PluginStore.set("discourse-insights", "reports_#{admin.id}", [query.id])
+      admin.custom_fields["insights_report_ids"] = [query.id]
+      admin.save_custom_fields
 
       delete "/insights/reports/#{query.id}.json"
       expect(response.status).to eq(200)
 
-      ids = PluginStore.get("discourse-insights", "reports_#{admin.id}")
+      ids = admin.reload.custom_fields["insights_report_ids"]
       expect(ids).not_to include(query.id)
     end
   end
@@ -339,7 +341,8 @@ describe DiscourseInsights::ReportsController do
       q3 = create_de_query(name: "Custom Query")
 
       PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
-      PluginStore.set("discourse-insights", "reports_#{admin.id}", [q1.id])
+      admin.custom_fields["insights_report_ids"] = [q1.id]
+      admin.save_custom_fields
 
       get "/insights/reports/available.json"
       expect(response.status).to eq(200)

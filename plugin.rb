@@ -15,11 +15,13 @@ register_asset "stylesheets/insights.scss"
 module ::DiscourseInsights
   PLUGIN_NAME = "discourse-insights"
   AI_PERSONA_NAME = "Insights Advisor"
+  REPORT_IDS_CUSTOM_FIELD = "insights_report_ids"
 
   SEEDED_QUERIES = [
+    # default top 4
     {
-      name: "Weekly Active Users",
-      description: "Unique users who visited each week.",
+      name: "Active Users",
+      description: "Unique users who visited.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -30,7 +32,94 @@ module ::DiscourseInsights
         GROUP BY week ORDER BY week
       SQL
     },
-    { name: "New Signups Per Week", description: "New user registrations per week.", sql: <<~SQL },
+    { name: "Topics by Category", description: "New topics per category.", sql: <<~SQL },
+        -- [params]
+        -- date :start_date = #{30.days.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT c.name AS category, COUNT(*) AS topics
+        FROM topics t
+        JOIN categories c ON c.id = t.category_id
+        WHERE t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND t.deleted_at IS NULL
+          AND t.visible = true
+          AND t.archetype = 'regular'
+        GROUP BY c.name
+        ORDER BY topics DESC
+        LIMIT 15
+      SQL
+    {
+      name: "Category Deep Dive",
+      description:
+        "New topics, replies, and likes for a single category. Use the category picker to switch between categories.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        -- category_id :category_id = 1
+        SELECT
+          DATE_TRUNC('week', t.created_at)::date AS week,
+          COUNT(DISTINCT t.id) AS new_topics,
+          COUNT(DISTINCT p.id) FILTER (WHERE p.post_number > 1) AS replies,
+          COALESCE(SUM(p.like_count) FILTER (WHERE p.post_number > 1), 0) AS likes
+        FROM topics t
+        LEFT JOIN posts p ON p.topic_id = t.id
+          AND p.deleted_at IS NULL
+          AND p.post_type = 1
+          AND p.created_at BETWEEN :start_date AND (:end_date::date + 1)
+        WHERE t.category_id = :category_id
+          AND t.created_at BETWEEN :start_date AND (:end_date::date + 1)
+          AND t.deleted_at IS NULL
+          AND t.visible = true
+          AND t.archetype = 'regular'
+        GROUP BY week
+        ORDER BY week
+      SQL
+    },
+    {
+      name: "Member Lifecycle",
+      description:
+        "Returning, new, reactivated, and churned members. Shows community retention health.",
+      sql: <<~SQL,
+        -- [params]
+        -- date :start_date = #{12.weeks.ago.to_date}
+        -- date :end_date = #{Date.today}
+        SELECT
+          classified.week,
+          COUNT(*) FILTER (WHERE classified.in_cur AND classified.in_prev AND NOT classified.is_new) AS returning,
+          COUNT(*) FILTER (WHERE classified.in_cur AND classified.is_new) AS new,
+          COUNT(*) FILTER (WHERE classified.in_cur AND NOT classified.in_prev AND NOT classified.is_new) AS reactivated,
+          COUNT(*) FILTER (WHERE NOT classified.in_cur AND classified.in_prev) AS churned
+        FROM (
+          SELECT
+            pairs.week_start AS week,
+            pairs.user_id,
+            bool_or(pairs.in_cur) AS in_cur,
+            bool_or(pairs.in_prev) AS in_prev,
+            bool_or(u.created_at >= pairs.week_start AND u.created_at < pairs.week_start + 7) AS is_new
+          FROM (
+            SELECT DATE_TRUNC('week', visited_at)::date AS week_start, user_id,
+                   true AS in_cur, false AS in_prev
+            FROM user_visits
+            WHERE visited_at BETWEEN :start_date::date AND :end_date
+            GROUP BY 1, 2
+            UNION ALL
+            SELECT (DATE_TRUNC('week', visited_at) + '7 days'::interval)::date AS week_start, user_id,
+                   false AS in_cur, true AS in_prev
+            FROM user_visits
+            WHERE visited_at BETWEEN (:start_date::date - 7) AND :end_date
+            GROUP BY 1, 2
+          ) pairs
+          LEFT JOIN users u ON u.id = pairs.user_id
+          GROUP BY pairs.week_start, pairs.user_id
+        ) classified
+        WHERE classified.week BETWEEN DATE_TRUNC('week', :start_date::date)::date
+                                  AND DATE_TRUNC('week', :end_date::date)::date
+        GROUP BY classified.week
+        ORDER BY classified.week
+      SQL
+    },
+    # remaining reports
+    { name: "New Signups", description: "New user registrations.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
         -- date :end_date = #{Date.today}
@@ -65,35 +154,7 @@ module ::DiscourseInsights
         ORDER BY ar.date
       SQL
     },
-    {
-      name: "Category Deep Dive",
-      description:
-        "Weekly new topics, replies, and likes for a single category. Use the category picker to switch between categories.",
-      sql: <<~SQL,
-        -- [params]
-        -- date :start_date = #{12.weeks.ago.to_date}
-        -- date :end_date = #{Date.today}
-        -- category_id :category_id = 1
-        SELECT
-          DATE_TRUNC('week', t.created_at)::date AS week,
-          COUNT(DISTINCT t.id) AS new_topics,
-          COUNT(DISTINCT p.id) FILTER (WHERE p.post_number > 1) AS replies,
-          COALESCE(SUM(p.like_count) FILTER (WHERE p.post_number > 1), 0) AS likes
-        FROM topics t
-        LEFT JOIN posts p ON p.topic_id = t.id
-          AND p.deleted_at IS NULL
-          AND p.post_type = 1
-          AND p.created_at BETWEEN :start_date AND (:end_date::date + 1)
-        WHERE t.category_id = :category_id
-          AND t.created_at BETWEEN :start_date AND (:end_date::date + 1)
-          AND t.deleted_at IS NULL
-          AND t.visible = true
-          AND t.archetype = 'regular'
-        GROUP BY week
-        ORDER BY week
-      SQL
-    },
-    { name: "Posts Per Week", description: "Posts created per week.", sql: <<~SQL },
+    { name: "Posts Created", description: "Posts created.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
         -- date :end_date = #{Date.today}
@@ -105,7 +166,7 @@ module ::DiscourseInsights
           AND t.archetype = 'regular'
         GROUP BY week ORDER BY week
       SQL
-    { name: "Likes Per Week", description: "Likes given per week.", sql: <<~SQL },
+    { name: "Likes Given", description: "Likes given.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
         -- date :end_date = #{Date.today}
@@ -115,25 +176,10 @@ module ::DiscourseInsights
           AND action_type = 1
         GROUP BY week ORDER BY week
       SQL
-    { name: "Topics by Category", description: "New topics per category.", sql: <<~SQL },
-        -- [params]
-        -- date :start_date = #{30.days.ago.to_date}
-        -- date :end_date = #{Date.today}
-        SELECT c.name AS category, COUNT(*) AS topics
-        FROM topics t
-        JOIN categories c ON c.id = t.category_id
-        WHERE t.created_at BETWEEN :start_date AND (:end_date::date + 1)
-          AND t.deleted_at IS NULL
-          AND t.visible = true
-          AND t.archetype = 'regular'
-        GROUP BY c.name
-        ORDER BY topics DESC
-        LIMIT 15
-      SQL
     {
-      name: "Solved Topics Per Week",
+      name: "Solved Topics",
       description:
-        "Topics with an accepted solution per week. Shows whether support deflection is working. Requires the Solved plugin.",
+        "Topics with an accepted solution. Shows whether support deflection is working. Requires the Solved plugin.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -145,9 +191,9 @@ module ::DiscourseInsights
       SQL
     },
     {
-      name: "Unanswered Topics Per Week",
+      name: "Unanswered Topics",
       description:
-        "Topics that received no replies, grouped by the week they were created. Shows the support gap.",
+        "Topics that received no replies. Shows the support gap.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -163,9 +209,9 @@ module ::DiscourseInsights
       SQL
     },
     {
-      name: "Avg First Response Time Per Week",
+      name: "Avg First Response Time",
       description:
-        "Average hours until a topic receives its first reply, per week. Lower is better.",
+        "Average hours until a topic receives its first reply. Lower is better.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -189,9 +235,9 @@ module ::DiscourseInsights
       SQL
     },
     {
-      name: "Engaged Users Per Week",
+      name: "Engaged Users",
       description:
-        "Unique users who posted, replied, or liked each week. Measures engagement depth beyond visits.",
+        "Unique users who posted, replied, or liked. Measures engagement depth beyond visits.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -204,9 +250,9 @@ module ::DiscourseInsights
       SQL
     },
     {
-      name: "Trust Level Promotions Per Week",
+      name: "Trust Level Promotions",
       description:
-        "Users promoted to a higher trust level each week. Shows community maturation over time.",
+        "Users promoted to a higher trust level. Shows community maturation over time.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -296,52 +342,9 @@ module ::DiscourseInsights
       SQL
     },
     {
-      name: "Member Lifecycle Per Week",
-      description:
-        "Weekly breakdown: returning (active this week and last), new (signed up this week), reactivated (came back after absence), and churned (active last week but not this). Shows community retention health.",
-      sql: <<~SQL,
-        -- [params]
-        -- date :start_date = #{12.weeks.ago.to_date}
-        -- date :end_date = #{Date.today}
-        SELECT
-          classified.week,
-          COUNT(*) FILTER (WHERE classified.in_cur AND classified.in_prev AND NOT classified.is_new) AS returning,
-          COUNT(*) FILTER (WHERE classified.in_cur AND classified.is_new) AS new,
-          COUNT(*) FILTER (WHERE classified.in_cur AND NOT classified.in_prev AND NOT classified.is_new) AS reactivated,
-          COUNT(*) FILTER (WHERE NOT classified.in_cur AND classified.in_prev) AS churned
-        FROM (
-          SELECT
-            pairs.week_start AS week,
-            pairs.user_id,
-            bool_or(pairs.in_cur) AS in_cur,
-            bool_or(pairs.in_prev) AS in_prev,
-            bool_or(u.created_at >= pairs.week_start AND u.created_at < pairs.week_start + 7) AS is_new
-          FROM (
-            SELECT DATE_TRUNC('week', visited_at)::date AS week_start, user_id,
-                   true AS in_cur, false AS in_prev
-            FROM user_visits
-            WHERE visited_at BETWEEN :start_date::date AND :end_date
-            GROUP BY 1, 2
-            UNION ALL
-            SELECT (DATE_TRUNC('week', visited_at) + '7 days'::interval)::date AS week_start, user_id,
-                   false AS in_cur, true AS in_prev
-            FROM user_visits
-            WHERE visited_at BETWEEN (:start_date::date - 7) AND :end_date
-            GROUP BY 1, 2
-          ) pairs
-          LEFT JOIN users u ON u.id = pairs.user_id
-          GROUP BY pairs.week_start, pairs.user_id
-        ) classified
-        WHERE classified.week BETWEEN DATE_TRUNC('week', :start_date::date)::date
-                                  AND DATE_TRUNC('week', :end_date::date)::date
-        GROUP BY classified.week
-        ORDER BY classified.week
-      SQL
-    },
-    {
       name: "Moderator vs Community Posts",
       description:
-        "Weekly count of posts by staff (admins + moderators) vs. community members. A healthy community has a low staff ratio — aim for staff posts under 20% of total.",
+        "Posts by staff (admins + moderators) vs. community members. A healthy community has a low staff ratio — aim for staff posts under 20% of total.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -366,15 +369,24 @@ end
 require_relative "lib/discourse_insights/engine"
 
 after_initialize do
+  register_user_custom_field_type(DiscourseInsights::REPORT_IDS_CUSTOM_FIELD, :json)
+
   if defined?(DiscourseDataExplorer)
     seeded_ids =
       DiscourseInsights::SEEDED_QUERIES.map do |q|
         query = DiscourseDataExplorer::Query.find_or_initialize_by(name: q[:name])
         query.description = q[:description]
         query.sql = q[:sql]
+        query.user_id ||= Discourse::SYSTEM_USER_ID
         query.save!
         query.id
       end
+    old_seeded_ids = PluginStore.get(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids") || []
+    orphaned_ids = old_seeded_ids - seeded_ids
+    if orphaned_ids.present?
+      DiscourseDataExplorer::Query.where(id: orphaned_ids).destroy_all
+    end
+
     PluginStore.set(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids", seeded_ids)
 
     sync_query_groups =
@@ -454,6 +466,7 @@ after_initialize do
     persona.allowed_group_ids ||= [Group::AUTO_GROUPS[:staff]]
     persona.enabled = false if persona.new_record?
     persona.tools = [%w[Search], %w[Read]]
+    persona.created_by_id ||= Discourse::SYSTEM_USER_ID
     persona.save!
   end
 end
