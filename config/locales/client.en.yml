@@ -50,6 +50,7 @@ en:
         wau: "WAU:"
         mau: "MAU:"
         dau_mau: "DAU/MAU:"
+      ai_timeout: "Could not generate insights. Try again later."
       questions:
         categories: "Which categories need attention?"
         content: "What content should I create next?"

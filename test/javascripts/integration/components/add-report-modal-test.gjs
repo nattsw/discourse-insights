@@ -1,4 +1,4 @@
-import { fillIn, render, settled } from "@ember/test-helpers";
+import { fillIn, render } from "@ember/test-helpers";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
 import pretender, { response } from "discourse/tests/helpers/create-pretender";
@@ -37,7 +37,6 @@ module(
           <AddReportModal @model={{model}} @closeModal={{closeModal}} />
         </template>
       );
-      await settled();
     }
 
     test("renders filter input and all unpinned queries", async function (assert) {
@@ -45,10 +44,10 @@ module(
       await renderModal();
 
       assert
-        .dom(".add-report-modal__filter")
+        .dom(".insights-add-report-modal__filter")
         .exists("filter input is rendered");
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .exists({ count: 3 }, "shows 3 unpinned queries");
     });
 
@@ -56,13 +55,13 @@ module(
       mockAvailable(QUERIES);
       await renderModal();
 
-      await fillIn(".add-report-modal__filter", "weekly");
+      await fillIn(".insights-add-report-modal__filter", "weekly");
 
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .exists({ count: 1 }, "only matching query shown");
       assert
-        .dom(".add-report-modal__name")
+        .dom(".insights-add-report-modal__name")
         .hasText(/Weekly Users/);
     });
 
@@ -70,10 +69,10 @@ module(
       mockAvailable(QUERIES);
       await renderModal();
 
-      await fillIn(".add-report-modal__filter", "new topics");
+      await fillIn(".insights-add-report-modal__filter", "new topics");
 
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .doesNotExist("description text does not match");
     });
 
@@ -81,13 +80,13 @@ module(
       mockAvailable(QUERIES);
       await renderModal();
 
-      await fillIn(".add-report-modal__filter", "zzzznotfound");
+      await fillIn(".insights-add-report-modal__filter", "zzzznotfound");
 
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .doesNotExist("no items shown");
       assert
-        .dom(".add-report-modal__empty")
+        .dom(".insights-add-report-modal__empty")
         .exists("empty state message shown");
     });
 
@@ -95,10 +94,10 @@ module(
       mockAvailable(QUERIES);
       await renderModal();
 
-      await fillIn(".add-report-modal__filter", "CATEGORY");
+      await fillIn(".insights-add-report-modal__filter", "CATEGORY");
 
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .exists({ count: 1 }, "case-insensitive match works");
     });
 
@@ -106,14 +105,14 @@ module(
       mockAvailable(QUERIES);
       await renderModal();
 
-      await fillIn(".add-report-modal__filter", "weekly");
+      await fillIn(".insights-add-report-modal__filter", "weekly");
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .exists({ count: 1 });
 
-      await fillIn(".add-report-modal__filter", "");
+      await fillIn(".insights-add-report-modal__filter", "");
       assert
-        .dom(".add-report-modal__item")
+        .dom(".insights-add-report-modal__item")
         .exists({ count: 3 }, "all unpinned queries restored");
     });
   }

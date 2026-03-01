@@ -251,6 +251,13 @@
 }
 
 // AI loading animation
+.insights-ai-error {
+  color: var(--primary-medium);
+  font-size: var(--font-down-1);
+  padding: 0.5em 0;
+  margin: 0;
+}
+
 .insights-ai-loading {
   display: flex;
   align-items: center;
@@ -964,7 +971,7 @@
 }
 
 // Add report modal
-.add-report-modal {
+.insights-add-report-modal {
   &__filter {
     width: 100%;
     margin-bottom: 0.5em;

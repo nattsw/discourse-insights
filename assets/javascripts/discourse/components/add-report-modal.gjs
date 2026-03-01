@@ -72,18 +72,18 @@ export default class AddReportModal extends Component {
 
   <template>
     <DModal
-      class="add-report-modal"
+      class="insights-add-report-modal"
       @title={{i18n "discourse_insights.reports.add_title"}}
       @closeModal={{@closeModal}}
     >
       <:body>
         {{#if this.loading}}
-          <div class="add-report-modal__loading">
+          <div class="insights-add-report-modal__loading">
             <div class="spinner medium"></div>
           </div>
         {{else if this.unpinnedQueries.length}}
           <input
-            class="add-report-modal__filter"
+            class="insights-add-report-modal__filter"
             type="text"
             value={{this.filter}}
             placeholder={{i18n
@@ -92,11 +92,11 @@ export default class AddReportModal extends Component {
             {{on "input" this.onFilterChange}}
           />
           {{#if this.filteredQueries.length}}
-            <ul class="add-report-modal__list">
+            <ul class="insights-add-report-modal__list">
               {{#each this.filteredQueries as |query|}}
-                <li class="add-report-modal__item">
-                  <div class="add-report-modal__info">
-                    <span class="add-report-modal__name">
+                <li class="insights-add-report-modal__item">
+                  <div class="insights-add-report-modal__info">
+                    <span class="insights-add-report-modal__name">
                       {{#if query.insights}}<span
                           class="insights-sparkle-badge"
                           title={{i18n
@@ -107,7 +107,7 @@ export default class AddReportModal extends Component {
                     </span>
                     {{#if query.description}}
                       <span
-                        class="add-report-modal__desc"
+                        class="insights-add-report-modal__desc"
                       >{{query.description}}</span>
                     {{/if}}
                   </div>
@@ -121,12 +121,12 @@ export default class AddReportModal extends Component {
               {{/each}}
             </ul>
           {{else}}
-            <p class="add-report-modal__empty">
+            <p class="insights-add-report-modal__empty">
               {{i18n "discourse_insights.reports.no_matching"}}
             </p>
           {{/if}}
         {{else}}
-          <p class="add-report-modal__empty">
+          <p class="insights-add-report-modal__empty">
             {{i18n "discourse_insights.reports.none_available"}}
           </p>
         {{/if}}
