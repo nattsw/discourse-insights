@@ -121,116 +121,118 @@ export default class InsightsLiveSection extends Component {
     {{#if @loading}}
       <div class="spinner small"></div>
     {{else if @liveData}}
-      <div class="insights-live__stats">
-        <div class="insights-live__stat">
-          <span
-            class="insights-live__stat-value"
-          >{{@liveData.active_users}}</span>
-          <span class="insights-live__stat-label">{{this.activeLabel}}</span>
-        </div>
-        <div class="insights-live__stat">
-          <span
-            class="insights-live__stat-value"
-          >{{@liveData.composing.total}}</span>
-          <span
-            class="insights-live__stat-label"
-          >{{this.composingLabel}}</span>
-          {{#if this.composingDetail}}
+      <div class="insights-card">
+        <div class="insights-live__stats">
+          <div class="insights-live__stat">
             <span
-              class="insights-live__stat-detail"
-            >{{this.composingDetail}}</span>
+              class="insights-live__stat-value"
+            >{{@liveData.active_users}}</span>
+            <span class="insights-live__stat-label">{{this.activeLabel}}</span>
+          </div>
+          <div class="insights-live__stat">
+            <span
+              class="insights-live__stat-value"
+            >{{@liveData.composing.total}}</span>
+            <span
+              class="insights-live__stat-label"
+            >{{this.composingLabel}}</span>
+            {{#if this.composingDetail}}
+              <span
+                class="insights-live__stat-detail"
+              >{{this.composingDetail}}</span>
+            {{/if}}
+          </div>
+        </div>
+
+        {{#if this.hotCategories.length}}
+          <div class="insights-live__section">
+            <div
+              class="insights-live__section-title"
+            >{{i18n "discourse_insights.live.hot_categories"}}</div>
+            <div class="insights-live__hot-cats">
+              {{#each this.hotCategories as |cat|}}
+                <span class="insights-live__hot-cat">
+                  <span
+                    class="insights-cat-dot"
+                    style={{cat.dotStyle}}
+                  ></span>
+                  {{cat.name}}
+                  <span
+                    class="insights-live__hot-cat-count"
+                  >{{cat.recent_posts}}</span>
+                </span>
+              {{/each}}
+              <span class="insights-live__hot-cats-suffix">{{i18n
+                  "discourse_insights.live.hot_categories_suffix"
+                  window=this.categoriesWindow
+                }}</span>
+            </div>
+          </div>
+        {{/if}}
+
+        {{#if this.hotChatChannels.length}}
+          <div class="insights-live__section">
+            <div
+              class="insights-live__section-title"
+            >{{i18n "discourse_insights.live.hot_chat_channels"}}</div>
+            <div class="insights-live__hot-cats">
+              {{#each this.hotChatChannels as |ch|}}
+                <span class="insights-live__hot-cat">
+                  <span
+                    class="insights-cat-dot"
+                    style={{ch.dotStyle}}
+                  ></span>
+                  <a href={{ch.url}}>{{ch.name}}</a>
+                  <span
+                    class="insights-live__hot-cat-count"
+                  >{{ch.recent_messages}}</span>
+                </span>
+              {{/each}}
+              <span class="insights-live__hot-cats-suffix">{{i18n
+                  "discourse_insights.live.hot_chat_suffix"
+                  window=this.chatWindow
+                }}</span>
+            </div>
+          </div>
+        {{/if}}
+
+        <div class="insights-live__section">
+          <div
+            class="insights-live__section-title"
+          >{{i18n "discourse_insights.live.activity"}}</div>
+          {{#if this.stream.length}}
+            <ul class="insights-live__stream">
+              {{#each this.stream as |item|}}
+                <li class="insights-live__stream-item">
+                  <span
+                    class="insights-live__stream-type insights-live__stream-type--{{item.dotType}}"
+                  ></span>
+                  <span class="insights-live__stream-text">
+                    {{#if (eq item.type "topic_activity")}}
+                      <a href={{item.url}}>{{item.topic_title}}</a>
+                      {{#if item.countsText}}
+                        <span
+                          class="insights-live__stream-counts"
+                        >{{item.countsText}}</span>
+                      {{/if}}
+                    {{else if item.url}}
+                      <a href={{item.url}}>{{item.text}}</a>
+                    {{else}}
+                      {{item.text}}
+                    {{/if}}
+                  </span>
+                  <span
+                    class="insights-live__stream-time"
+                  >{{item.relativeTime}}</span>
+                </li>
+              {{/each}}
+            </ul>
+          {{else}}
+            <div class="insights-live__empty">{{i18n
+                "discourse_insights.live.no_activity"
+              }}</div>
           {{/if}}
         </div>
-      </div>
-
-      {{#if this.hotCategories.length}}
-        <div class="insights-live__section">
-          <div
-            class="insights-live__section-title"
-          >{{i18n "discourse_insights.live.hot_categories"}}</div>
-          <div class="insights-live__hot-cats">
-            {{#each this.hotCategories as |cat|}}
-              <span class="insights-live__hot-cat">
-                <span
-                  class="insights-cat-dot"
-                  style={{cat.dotStyle}}
-                ></span>
-                {{cat.name}}
-                <span
-                  class="insights-live__hot-cat-count"
-                >{{cat.recent_posts}}</span>
-              </span>
-            {{/each}}
-            <span class="insights-live__hot-cats-suffix">{{i18n
-                "discourse_insights.live.hot_categories_suffix"
-                window=this.categoriesWindow
-              }}</span>
-          </div>
-        </div>
-      {{/if}}
-
-      {{#if this.hotChatChannels.length}}
-        <div class="insights-live__section">
-          <div
-            class="insights-live__section-title"
-          >{{i18n "discourse_insights.live.hot_chat_channels"}}</div>
-          <div class="insights-live__hot-cats">
-            {{#each this.hotChatChannels as |ch|}}
-              <span class="insights-live__hot-cat">
-                <span
-                  class="insights-cat-dot"
-                  style={{ch.dotStyle}}
-                ></span>
-                <a href={{ch.url}}>{{ch.name}}</a>
-                <span
-                  class="insights-live__hot-cat-count"
-                >{{ch.recent_messages}}</span>
-              </span>
-            {{/each}}
-            <span class="insights-live__hot-cats-suffix">{{i18n
-                "discourse_insights.live.hot_chat_suffix"
-                window=this.chatWindow
-              }}</span>
-          </div>
-        </div>
-      {{/if}}
-
-      <div class="insights-live__section">
-        <div
-          class="insights-live__section-title"
-        >{{i18n "discourse_insights.live.activity"}}</div>
-        {{#if this.stream.length}}
-          <ul class="insights-live__stream">
-            {{#each this.stream as |item|}}
-              <li class="insights-live__stream-item">
-                <span
-                  class="insights-live__stream-type insights-live__stream-type--{{item.dotType}}"
-                ></span>
-                <span class="insights-live__stream-text">
-                  {{#if (eq item.type "topic_activity")}}
-                    <a href={{item.url}}>{{item.topic_title}}</a>
-                    {{#if item.countsText}}
-                      <span
-                        class="insights-live__stream-counts"
-                      >{{item.countsText}}</span>
-                    {{/if}}
-                  {{else if item.url}}
-                    <a href={{item.url}}>{{item.text}}</a>
-                  {{else}}
-                    {{item.text}}
-                  {{/if}}
-                </span>
-                <span
-                  class="insights-live__stream-time"
-                >{{item.relativeTime}}</span>
-              </li>
-            {{/each}}
-          </ul>
-        {{else}}
-          <div class="insights-live__empty">{{i18n
-              "discourse_insights.live.no_activity"
-            }}</div>
-        {{/if}}
       </div>
 
       <div class="insights-upsell">

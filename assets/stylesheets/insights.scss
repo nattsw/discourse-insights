@@ -1046,13 +1046,17 @@
     display: flex;
     flex-direction: column;
     gap: 1.25em;
-    padding-top: 0.75em;
+  }
+
+  .insights-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25em;
   }
 
   &__stats {
     display: flex;
     gap: 2em;
-    padding: 0 1.25em;
   }
 
   &__stat {
@@ -1080,7 +1084,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.5em;
-    padding: 0 1.25em;
 
     &-title {
       font-weight: 600;
@@ -1096,7 +1099,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.25em 0.5em;
-    padding: 0 1.25em;
     font-size: var(--font-down-1);
   }
 
