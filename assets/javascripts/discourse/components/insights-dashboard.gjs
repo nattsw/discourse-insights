@@ -7,7 +7,11 @@ import { service } from "@ember/service";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import { bind } from "discourse/lib/decorators";
+import KeyValueStore from "discourse/lib/key-value-store";
 import { i18n } from "discourse-i18n";
+
+const STORE_NAMESPACE = "discourse_insights_";
+const store = new KeyValueStore(STORE_NAMESPACE);
 import InsightsCategoriesSection from "./insights-categories-section";
 import InsightsContentSection from "./insights-content-section";
 import InsightsDateRangeModal from "./insights-date-range-modal";
@@ -26,7 +30,7 @@ export default class InsightsDashboard extends Component {
   @tracked customEndDate = null;
   @tracked data = null;
   @tracked loading = true;
-  @tracked expandedSections = {};
+  @tracked expandedSections = store.getObject("expanded") || {};
 
   constructor() {
     super(...arguments);
@@ -161,6 +165,7 @@ export default class InsightsDashboard extends Component {
       ...this.expandedSections,
       [key]: !this.expandedSections[key],
     };
+    store.setObject({ key: "expanded", value: this.expandedSections });
   }
 
   // helpers

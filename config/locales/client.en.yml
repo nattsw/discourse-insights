@@ -90,9 +90,9 @@ en:
           one: "%{count} active user"
           other: "%{count} active users"
         composing:
-          none: "Nobody composing"
-          one: "%{count} person composing"
-          other: "%{count} people composing"
+          none: "No one is writing"
+          one: "%{count} person writing"
+          other: "%{count} people writing"
         composing_detail: "%{topic_replies} in topics, %{chat} in chat"
         hot_categories: "Hot Categories"
         recent_posts: "posts in the last hour"

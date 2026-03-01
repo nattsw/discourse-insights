@@ -6,7 +6,10 @@ import { service } from "@ember/service";
 import DTooltip from "discourse/float-kit/components/d-tooltip";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
+import KeyValueStore from "discourse/lib/key-value-store";
 import { i18n } from "discourse-i18n";
+
+const store = new KeyValueStore("discourse_insights_");
 import AddReportModal from "./add-report-modal";
 import InsightsExploreSection from "./insights-explore-section";
 import InsightsReportChart from "./insights-report-chart";
@@ -16,7 +19,7 @@ export default class InsightsReportsSection extends Component {
 
   @tracked reports = null;
   @tracked loading = true;
-  @tracked expanded = false;
+  @tracked expanded = !!store.getObject("reports_expanded");
 
   _draggedReport = null;
 
@@ -43,6 +46,7 @@ export default class InsightsReportsSection extends Component {
   @action
   toggle() {
     this.expanded = !this.expanded;
+    store.setObject({ key: "reports_expanded", value: this.expanded });
   }
 
   @action

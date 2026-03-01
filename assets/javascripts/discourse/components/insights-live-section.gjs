@@ -1,13 +1,17 @@
 import Component from "@glimmer/component";
 import { tracked } from "@glimmer/tracking";
+import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { cancel, later } from "@ember/runloop";
 import { htmlSafe } from "@ember/template";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
+import KeyValueStore from "discourse/lib/key-value-store";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
 import InsightsExploreSection from "./insights-explore-section";
+
+const store = new KeyValueStore("discourse_insights_");
 
 const LIVE_POLL_INTERVAL_MS = 30000;
 
@@ -20,11 +24,19 @@ function humanWindow(minutes) {
 }
 
 export default class InsightsLiveSection extends Component {
-  @tracked expanded = false;
+  @tracked expanded = !!store.getObject("live_expanded");
   @tracked liveData = null;
   @tracked loading = false;
+  @tracked streamExpanded = false;
 
   _pollTimer = null;
+
+  constructor() {
+    super(...arguments);
+    if (this.expanded) {
+      this._fetchLiveData();
+    }
+  }
 
   willDestroy() {
     super.willDestroy(...arguments);
@@ -135,9 +147,26 @@ export default class InsightsLiveSection extends Component {
     });
   }
 
+  get visibleStream() {
+    if (this.streamExpanded) {
+      return this.stream;
+    }
+    return this.stream.slice(0, 4);
+  }
+
+  get hasMoreStream() {
+    return this.stream.length > 4;
+  }
+
+  @action
+  toggleStream() {
+    this.streamExpanded = !this.streamExpanded;
+  }
+
   @action
   toggle() {
     this.expanded = !this.expanded;
+    store.setObject({ key: "live_expanded", value: this.expanded });
     if (this.expanded) {
       this._fetchLiveData();
     } else {
@@ -273,7 +302,7 @@ export default class InsightsLiveSection extends Component {
                   }}</div>
                 {{#if this.stream.length}}
                   <ul class="insights-live__stream">
-                    {{#each this.stream as |item|}}
+                    {{#each this.visibleStream as |item|}}
                       <li class="insights-live__stream-item">
                         <span
                           class="insights-live__stream-type insights-live__stream-type--{{item.dotType}}"
@@ -297,6 +326,18 @@ export default class InsightsLiveSection extends Component {
                         >{{item.relativeTime}}</span>
                       </li>
                     {{/each}}
+                    {{#if this.hasMoreStream}}
+                      <li
+                        class="insights-live__stream-more"
+                        role="button"
+                        {{on "click" this.toggleStream}}
+                      >
+                        <span
+                          class="insights-live__stream-more-icon
+                            {{if this.streamExpanded 'insights-live__stream-more-icon--up'}}"
+                        >›</span>
+                      </li>
+                    {{/if}}
                   </ul>
                 {{else}}
                   <div class="insights-live__empty">{{i18n
