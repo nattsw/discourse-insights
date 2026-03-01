@@ -8,30 +8,10 @@ discourse_insights:
     default: "1"
     allow_any: false
     refresh: true
-  insights_activity_weight:
-    default: 20
-    min: 0
-    max: 100
-  insights_growth_weight:
-    default: 20
-    min: 0
-    max: 100
-  insights_engagement_weight:
-    default: 25
-    min: 0
-    max: 100
-  insights_content_weight:
-    default: 20
-    min: 0
-    max: 100
-  insights_responsiveness_weight:
-    default: 15
-    min: 0
-    max: 100
   insights_unanswered_threshold_hours:
     default: 24
     min: 1
     max: 168
-  insights_live_enabled:
+  insights_live_enhanced:
     default: false
     client: true

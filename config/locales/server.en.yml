@@ -6,10 +6,5 @@ en:
   site_settings:
     insights_enabled: "Enable the Insights page."
     insights_allowed_groups: "Groups allowed to view the Insights page."
-    insights_activity_weight: "Weight for the Activity dimension in the health score."
-    insights_growth_weight: "Weight for the Growth dimension in the health score."
-    insights_engagement_weight: "Weight for the Engagement dimension in the health score."
-    insights_content_weight: "Weight for the Content dimension in the health score."
-    insights_responsiveness_weight: "Weight for the Responsiveness dimension in the health score."
     insights_unanswered_threshold_hours: "Hours before a topic is considered unanswered in attention alerts."
-    insights_live_enabled: "Enable the Live View section on the Insights page showing real-time community activity. Runs additional queries every 25 seconds while the page is open — enable with care on very large sites."
+    insights_live_enhanced: "Enable supercharged Live View with enhanced user tracking. The basic Live View section works without this setting."
