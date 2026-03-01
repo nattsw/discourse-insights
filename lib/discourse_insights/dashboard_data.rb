@@ -326,6 +326,7 @@ module ::DiscourseInsights
     def compute_search_terms
       SearchLog
         .trending_from(@start_date, end_date: @end_date, limit: 10)
+        .where.not(user_id: nil)
         .map do |row|
           ctr = row.searches > 0 ? (row.click_through.to_f / row.searches * 100).round : 0
           { term: row.term, count: row.searches, ctr:, content_gap: ctr < 20 }

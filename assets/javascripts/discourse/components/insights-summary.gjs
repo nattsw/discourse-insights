@@ -3,12 +3,21 @@ import { tracked } from "@glimmer/tracking";
 import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
+import didInsert from "@ember/render-modifiers/modifiers/did-insert";
+import didUpdate from "@ember/render-modifiers/modifiers/did-update";
+import willDestroy from "@ember/render-modifiers/modifiers/will-destroy";
+import { cancel, later } from "@ember/runloop";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import CookText from "discourse/components/cook-text";
 import DButton from "discourse/components/d-button";
 import number from "discourse/helpers/number";
+import { ajax } from "discourse/lib/ajax";
+import { bind } from "discourse/lib/decorators";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
+
+const AI_TIMEOUT_MS = 30000;
 
 const METRIC_KEYS = [
   "visitors",
@@ -51,8 +60,30 @@ function trendCssClass(pct) {
 }
 
 export default class InsightsSummary extends Component {
+  @service messageBus;
+
   @tracked expandedMetric = null;
   @tracked expandedQuestion = null;
+
+  // ai state
+  @tracked aiSummary = "";
+  @tracked aiSummaryLoading = false;
+  @tracked aiSummaryDone = false;
+  @tracked aiAnswer = "";
+  @tracked aiAnswerLoading = false;
+  @tracked aiAnswerDone = false;
+  @tracked aiAnswerType = null;
+  @tracked aiSummaryError = false;
+  @tracked aiAnswerError = false;
+  @tracked customQuestion = "";
+
+  _aiSummaryTimer = null;
+  _aiAnswerTimer = null;
+  _aiCache = new Map();
+
+  get aiAvailable() {
+    return !!this.args.data?.ai_available;
+  }
 
   get metrics() {
     if (!this.args.data?.metrics) {
@@ -252,6 +283,190 @@ export default class InsightsSummary extends Component {
     }
   }
 
+  get _periodKey() {
+    const p = this.args.data?.period;
+    if (!p) {
+      return null;
+    }
+    return `${p.start_date}_${p.end_date}`;
+  }
+
+  get _periodParams() {
+    const p = this.args.data?.period;
+    if (!p) {
+      return {};
+    }
+    if (p.period_id) {
+      return { period: p.period_id };
+    }
+    return { start_date: p.start_date, end_date: p.end_date };
+  }
+
+  // ai lifecycle
+
+  @bind
+  subscribeAi() {
+    this.messageBus.subscribe("/insights/ai/stream", this._onAiStream);
+    this.triggerAiSummary();
+  }
+
+  @bind
+  onDataChanged() {
+    this._resetAiState();
+    this.triggerAiSummary();
+  }
+
+  @bind
+  unsubscribeAi() {
+    this.messageBus.unsubscribe("/insights/ai/stream", this._onAiStream);
+    cancel(this._aiSummaryTimer);
+    cancel(this._aiAnswerTimer);
+  }
+
+  @bind
+  _onAiStream(update) {
+    const periodKey = this._periodKey;
+    if (update.type === "summary") {
+      this.aiSummary = update.text;
+      this.aiSummaryLoading = false;
+      if (update.done) {
+        this.aiSummaryDone = true;
+        cancel(this._aiSummaryTimer);
+        this._aiCache.set(`summary_${periodKey}`, update.text);
+      }
+    } else {
+      if (update.type !== this.aiAnswerType) {
+        return;
+      }
+      this.aiAnswer = update.text;
+      this.aiAnswerLoading = false;
+      if (update.done) {
+        this.aiAnswerDone = true;
+        cancel(this._aiAnswerTimer);
+        if (update.type !== "custom") {
+          this._aiCache.set(`${update.type}_${periodKey}`, update.text);
+        }
+      }
+    }
+  }
+
+  triggerAiSummary() {
+    if (!this.aiAvailable) {
+      return;
+    }
+
+    const cached = this._aiCache.get(`summary_${this._periodKey}`);
+    if (cached) {
+      this.aiSummary = cached;
+      this.aiSummaryDone = true;
+      this.aiSummaryLoading = false;
+      return;
+    }
+
+    this.aiSummary = "";
+    this.aiSummaryLoading = true;
+    this.aiSummaryDone = false;
+    this.aiSummaryError = false;
+
+    this._aiSummaryTimer = later(
+      this,
+      () => {
+        if (!this.aiSummaryDone && this.aiSummary.length === 0) {
+          this.aiSummaryLoading = false;
+          this.aiSummaryError = true;
+        }
+      },
+      AI_TIMEOUT_MS
+    );
+
+    ajax("/insights/ai/generate.json", {
+      type: "POST",
+      data: { type: "summary", ...this._periodParams },
+    })
+      .then((result) => {
+        if (result.text) {
+          this.aiSummary = result.text;
+          this.aiSummaryLoading = false;
+          this.aiSummaryDone = true;
+          cancel(this._aiSummaryTimer);
+          this._aiCache.set(`summary_${this._periodKey}`, result.text);
+        }
+      })
+      .catch(() => {
+        this.aiSummaryLoading = false;
+      });
+  }
+
+  triggerAiAnswer(type, question) {
+    if (!this.aiAvailable) {
+      return;
+    }
+
+    if (type !== "custom") {
+      const cached = this._aiCache.get(`${type}_${this._periodKey}`);
+      if (cached) {
+        this.aiAnswer = cached;
+        this.aiAnswerDone = true;
+        this.aiAnswerLoading = false;
+        this.aiAnswerType = type;
+        return;
+      }
+    }
+
+    this.aiAnswer = "";
+    this.aiAnswerLoading = true;
+    this.aiAnswerDone = false;
+    this.aiAnswerError = false;
+    this.aiAnswerType = type;
+
+    this._aiAnswerTimer = later(
+      this,
+      () => {
+        if (!this.aiAnswerDone && this.aiAnswer.length === 0) {
+          this.aiAnswerLoading = false;
+          this.aiAnswerError = true;
+        }
+      },
+      AI_TIMEOUT_MS
+    );
+
+    const data = { type, ...this._periodParams };
+    if (type === "custom") {
+      data.question = question;
+    }
+
+    ajax("/insights/ai/generate.json", {
+      type: "POST",
+      data,
+    })
+      .then((result) => {
+        if (result.text) {
+          this.aiAnswer = result.text;
+          this.aiAnswerLoading = false;
+          this.aiAnswerDone = true;
+          this.aiAnswerType = type;
+          cancel(this._aiAnswerTimer);
+          if (type !== "custom") {
+            this._aiCache.set(`${type}_${this._periodKey}`, result.text);
+          }
+        }
+      })
+      .catch(() => {
+        this.aiAnswerLoading = false;
+      });
+  }
+
+  _resetAiState() {
+    this.aiSummary = "";
+    this.aiSummaryDone = false;
+    this.aiSummaryError = false;
+    this.aiAnswer = "";
+    this.aiAnswerDone = false;
+    this.aiAnswerError = false;
+  }
+
+  // ui actions
+
   @action
   toggleMetric(key) {
     this.expandedMetric = this.expandedMetric === key ? null : key;
@@ -269,22 +484,32 @@ export default class InsightsSummary extends Component {
       return;
     }
     this.expandedQuestion = key;
-    this.args.onToggleQuestion?.(key);
+    this.triggerAiAnswer(key);
   }
 
   @action
   submitCustomQuestion(event) {
     event.preventDefault();
-    const q = this.args.customQuestion?.trim();
-    if (!q || !this.args.aiAvailable) {
+    const q = this.customQuestion?.trim();
+    if (!q || !this.aiAvailable) {
       return;
     }
     this.expandedQuestion = "custom";
-    this.args.onSubmitCustomQuestion?.(q);
+    this.triggerAiAnswer("custom", q);
+  }
+
+  @action
+  updateCustomQuestion(event) {
+    this.customQuestion = event.target.value;
   }
 
   <template>
-    <div class="insights-summary">
+    <div
+      class="insights-summary"
+      {{didInsert this.subscribeAi}}
+      {{didUpdate this.onDataChanged @data}}
+      {{willDestroy this.unsubscribeAi}}
+    >
       <div class="insights-summary__header">
         <span class="insights-summary__icon">✦</span>
         <span class="insights-summary__title">{{i18n
@@ -292,19 +517,19 @@ export default class InsightsSummary extends Component {
           }}</span>
       </div>
 
-      {{#if @aiSummaryLoading}}
+      {{#if this.aiSummaryLoading}}
         <div class="insights-ai-loading">
           <span class="insights-ai-loading__dots">
             <span></span><span></span><span></span>
           </span>
         </div>
-      {{else if @aiSummaryError}}
+      {{else if this.aiSummaryError}}
         <p class="insights-ai-error">{{i18n
             "discourse_insights.ai_timeout"
           }}</p>
-      {{else if @aiSummary}}
+      {{else if this.aiSummary}}
         <div class="insights-ai-narrative">
-          <CookText @rawText={{@aiSummary}} />
+          <CookText @rawText={{this.aiSummary}} />
         </div>
       {{else}}
         <p class="insights-summary__narrative">
@@ -494,7 +719,7 @@ export default class InsightsSummary extends Component {
         {{/each}}
       </div>
 
-      {{#if @aiAvailable}}
+      {{#if this.aiAvailable}}
         <form class="insights-ask" {{on "submit" this.submitCustomQuestion}}>
           <input
             type="text"
@@ -502,27 +727,27 @@ export default class InsightsSummary extends Component {
             placeholder={{i18n
               "discourse_insights.questions.custom_placeholder"
             }}
-            value={{@customQuestion}}
-            {{on "input" @onCustomQuestionInput}}
+            value={{this.customQuestion}}
+            {{on "input" this.updateCustomQuestion}}
           />
         </form>
       {{/if}}
 
       {{#if this.expandedQuestion}}
         <div class="insights-answer">
-          {{#if @aiAnswerLoading}}
+          {{#if this.aiAnswerLoading}}
             <div class="insights-ai-loading">
               <span class="insights-ai-loading__dots">
                 <span></span><span></span><span></span>
               </span>
             </div>
-          {{else if @aiAnswerError}}
+          {{else if this.aiAnswerError}}
             <p class="insights-ai-error">{{i18n
                 "discourse_insights.ai_timeout"
               }}</p>
-          {{else if @aiAnswer}}
+          {{else if this.aiAnswer}}
             <div class="insights-ai-answer">
-              <CookText @rawText={{@aiAnswer}} />
+              <CookText @rawText={{this.aiAnswer}} />
             </div>
           {{else if this.questionAnswer}}
             <div class="insights-answer__text">{{this.questionAnswer}}</div>
