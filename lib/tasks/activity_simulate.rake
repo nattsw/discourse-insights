@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 desc "Simulate 6 months of realistic forum activity for insights dashboard"
-task "dev:simulate_activity" => :environment do
+task "dev:insights_activity:simulate" => :environment do
   # guard against double-execution (rake may load plugin task files twice)
   if defined?(@__simulate_activity_ran)
     puts "Skipping duplicate task execution"
