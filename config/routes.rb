@@ -8,6 +8,7 @@ DiscourseInsights::Engine.routes.draw do
   get "/reports/available" => "reports#available"
   get "/reports/:id/run" => "reports#run"
   post "/reports" => "reports#add"
+  put "/reports/reorder" => "reports#reorder"
   delete "/reports/:id" => "reports#remove"
 end
 

@@ -435,6 +435,11 @@
     transition: transform 0.2s;
     color: var(--primary-medium);
     width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+    line-height: 1;
   }
 
   &__title {
@@ -731,6 +736,30 @@
   border: 1px solid var(--primary-low);
   border-radius: var(--d-border-radius);
   padding: 1em;
+
+  &.dragging {
+    opacity: 0.4;
+  }
+
+  &.drag-above {
+    border-top: 2px solid var(--tertiary);
+  }
+
+  &.drag-below {
+    border-bottom: 2px solid var(--tertiary);
+  }
+
+  &__grip {
+    color: var(--primary-low-mid);
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    -webkit-user-drag: element;
+
+    .d-icon {
+      font-size: var(--font-down-1);
+    }
+  }
 
   &__header {
     display: flex;

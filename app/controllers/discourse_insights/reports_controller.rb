@@ -51,6 +51,13 @@ module ::DiscourseInsights
       render json: { success: true }
     end
 
+    def reorder
+      ids = params[:report_ids]&.map(&:to_i)
+      raise Discourse::InvalidParameters.new(:report_ids) if ids.blank?
+      report_list.reorder(ids)
+      render json: { success: true }
+    end
+
     def available
       list = report_list
       pinned = list.user_report_ids

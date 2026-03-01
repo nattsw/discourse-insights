@@ -4,13 +4,16 @@ import { fn } from "@ember/helper";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import didInsert from "@ember/render-modifiers/modifiers/did-insert";
-import { eq } from "discourse/truth-helpers";
-import CategoryChooser from "discourse/select-kit/components/category-chooser";
+import { service } from "@ember/service";
 import DButton from "discourse/components/d-button";
+import concatClass from "discourse/helpers/concat-class";
 import icon from "discourse/helpers/d-icon";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
+import discourseLater from "discourse/lib/later";
 import loadChartJS from "discourse/lib/load-chart-js";
+import CategoryChooser from "discourse/select-kit/components/category-chooser";
+import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
 
 const SERIES_COLORS = [
@@ -44,6 +47,8 @@ function isNumericColumn(rows, colIndex) {
 }
 
 export default class InsightsReportChart extends Component {
+  @service site;
+
   @tracked loading = true;
   @tracked error = false;
   @tracked columns = null;
@@ -52,7 +57,10 @@ export default class InsightsReportChart extends Component {
   @tracked showTable = false;
   @tracked rerunning = false;
   @tracked editableParams = new Map();
+  @tracked dragCssClass;
   chart = null;
+_dragCount = 0;
+  
   _canvas = null;
 
   constructor() {
@@ -382,10 +390,77 @@ export default class InsightsReportChart extends Component {
     this.args.onRemove?.(this.args.report.id);
   }
 
+  // drag-and-drop reordering
+
+  _isAboveElement(event) {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    return event.clientY < rect.top + rect.height / 2;
+  }
+
+  @action
+  dragStart(event) {
+    event.dataTransfer.effectAllowed = "move";
+    this.args.onDragStart?.(this.args.report);
+    this.dragCssClass = "dragging";
+  }
+
+  @action
+  dragOver(event) {
+    event.preventDefault();
+    if (this.dragCssClass !== "dragging") {
+      this.dragCssClass = this._isAboveElement(event)
+        ? "drag-above"
+        : "drag-below";
+    }
+  }
+
+  @action
+  dragEnter() {
+    this._dragCount++;
+  }
+
+  @action
+  dragLeave() {
+    this._dragCount--;
+    if (
+      this._dragCount === 0 &&
+      (this.dragCssClass === "drag-above" || this.dragCssClass === "drag-below")
+    ) {
+      discourseLater(() => (this.dragCssClass = null), 10);
+    }
+  }
+
+  @action
+  drop(event) {
+    event.stopPropagation();
+    this._dragCount = 0;
+    this.args.onReorder?.(this.args.report, this._isAboveElement(event));
+    this.dragCssClass = null;
+  }
+
+  @action
+  dragEnd() {
+    this._dragCount = 0;
+    this.dragCssClass = null;
+  }
+
   <template>
-    <div class="insights-report-chart">
+    <div
+      class={{concatClass "insights-report-chart" this.dragCssClass}}
+      draggable={{if this.site.desktopView "true" "false"}}
+      {{on "dragstart" this.dragStart}}
+      {{on "dragover" this.dragOver}}
+      {{on "dragenter" this.dragEnter}}
+      {{on "dragleave" this.dragLeave}}
+      {{on "dragend" this.dragEnd}}
+      {{on "drop" this.drop}}
+    >
       <div class="insights-report-chart__header">
         <div class="insights-report-chart__title-wrap">
+          {{#if this.site.desktopView}}
+            <span class="insights-report-chart__grip">{{icon "grip-lines"}}</span>
+          {{/if}}
           {{#if @report.insights}}<span
               class="insights-sparkle-badge"
               title={{i18n "discourse_insights.reports.insights_query_tooltip"}}

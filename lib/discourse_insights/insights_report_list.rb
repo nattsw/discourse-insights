@@ -36,6 +36,13 @@ module ::DiscourseInsights
       save_user_report_ids(ids)
     end
 
+    def reorder(new_ids)
+      current = Set.new(user_report_ids)
+      new_set = Set.new(new_ids)
+      return unless current == new_set
+      save_user_report_ids(new_ids)
+    end
+
     def user_report_ids
       PluginStore.get(PLUGIN_NAME, "reports_#{@user.id}") || default_report_ids
     end

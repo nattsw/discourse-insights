@@ -78,7 +78,10 @@ export default class InsightsDashboard extends Component {
   _aiCache = new Map();
   _livePollTimer = null;
 
-  constructor() {
+  // drag reorder
+_draggedReport = null;
+
+constructor() {
     super(...arguments);
 
     const p = this.args.routeParams;
@@ -488,6 +491,37 @@ export default class InsightsDashboard extends Component {
     }
   }
 
+  
+
+  
+
+  @action
+  setDraggedReport(report) {
+    this._draggedReport = report;
+  }
+
+  @action
+  reorderReport(targetReport, above) {
+    if (!this._draggedReport || this._draggedReport === targetReport) {
+      return;
+    }
+
+    const list = [...this.reports];
+    const fromIdx = list.findIndex((r) => r.id === this._draggedReport.id);
+    if (fromIdx === -1) {
+      return;
+    }
+    list.splice(fromIdx, 1);
+    const toIdx = list.findIndex((r) => r.id === targetReport.id);
+    list.splice(above ? toIdx : toIdx + 1, 0, this._draggedReport);
+    this.reports = list;
+
+    ajax("/insights/reports/reorder.json", {
+      type: "PUT",
+      data: { report_ids: list.map((r) => r.id) },
+    }).catch(popupAjaxError);
+  }
+
   // helpers
 
   _resetAiState() {
@@ -612,6 +646,8 @@ export default class InsightsDashboard extends Component {
                     @startDate={{this.data.period.start_date}}
                     @endDate={{this.data.period.end_date}}
                     @onRemove={{this.removeReport}}
+                    @onDragStart={{this.setDraggedReport}}
+                    @onReorder={{this.reorderReport}}
                   />
                 {{/each}}
                 <button
