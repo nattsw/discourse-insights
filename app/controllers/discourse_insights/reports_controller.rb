@@ -11,13 +11,11 @@ module ::DiscourseInsights
 
     def index
       list = report_list
-      render json: { reports: list.user_reports.map { |q| serialize_query(q, list) } }
+      render json: { reports: list.user_reports.map { |r| serialize_report(r, list) } }
     end
 
     def run
-      query_id = params[:id].to_i
-      query = DiscourseDataExplorer::Query.find(query_id)
-      raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
+      query = report_list.find_accessible_query!(params[:id].to_i)
 
       RateLimiter.new(
         current_user,
@@ -27,7 +25,9 @@ module ::DiscourseInsights
         apply_limit_to_staff: true,
       ).performed!
 
-      runner = InsightsReportRunner.new(query, current_user, params.to_unsafe_h)
+      permitted_keys = query.params.map(&:identifier)
+      query_params = params.permit(*permitted_keys).to_h
+      runner = InsightsReportRunner.new(query, current_user, query_params)
       render json: runner.run
     rescue StandardError => e
       if e.is_a?(Discourse::NotFound) || e.is_a?(RateLimiter::LimitExceeded) ||
@@ -38,11 +38,8 @@ module ::DiscourseInsights
     end
 
     def add
-      query_id = params[:query_id].to_i
-      query = DiscourseDataExplorer::Query.find(query_id)
-      raise Discourse::NotFound if query.hidden || !guardian.user_can_access_query?(query)
-
-      report_list.add_report(query_id)
+      query = report_list.find_accessible_query!(params[:query_id].to_i)
+      report_list.add_report(query.id)
       render json: { success: true }
     end
 
@@ -55,6 +52,20 @@ module ::DiscourseInsights
       ids = params[:report_ids]&.map(&:to_i)
       raise Discourse::InvalidParameters.new(:report_ids) if ids.blank?
       report_list.reorder(ids)
+      render json: { success: true }
+    end
+
+    def save
+      entries = params[:reports]
+      raise Discourse::InvalidParameters.new(:reports) if !entries.is_a?(Array) || entries.blank?
+
+      parsed =
+        entries.map do |entry|
+          e = entry.permit(:query_id, params: {}).to_h.deep_symbolize_keys
+          { query_id: e[:query_id], params: e[:params] }
+        end
+
+      report_list.save_all(parsed)
       render json: { success: true }
     end
 
@@ -71,6 +82,16 @@ module ::DiscourseInsights
 
     def report_list
       @report_list ||= InsightsReportList.new(current_user, guardian)
+    end
+
+    def serialize_report(report, list)
+      {
+        id: report[:query].id,
+        name: report[:query].name,
+        description: report[:query].description,
+        insights: list.seeded_query_ids.include?(report[:query].id),
+        params: report[:params],
+      }
     end
 
     def serialize_query(query, list, pinned: nil)

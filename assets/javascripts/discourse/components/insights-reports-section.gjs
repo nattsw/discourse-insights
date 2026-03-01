@@ -3,7 +3,7 @@ import { tracked } from "@glimmer/tracking";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { service } from "@ember/service";
-import DTooltip from "discourse/float-kit/components/d-tooltip";
+import DButton from "discourse/components/d-button";
 import { ajax } from "discourse/lib/ajax";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import KeyValueStore from "discourse/lib/key-value-store";
@@ -16,6 +16,7 @@ import InsightsReportChart from "./insights-report-chart";
 
 export default class InsightsReportsSection extends Component {
   @service modal;
+  @service router;
 
   @tracked reports = null;
   @tracked loading = true;
@@ -80,6 +81,11 @@ export default class InsightsReportsSection extends Component {
   }
 
   @action
+  openEditor() {
+    this.router.transitionTo("insights.reports");
+  }
+
+  @action
   reorderReport(targetReport, above) {
     if (!this._draggedReport || this._draggedReport === targetReport) {
       return;
@@ -111,11 +117,14 @@ export default class InsightsReportsSection extends Component {
       >
         <:title>
           {{i18n "discourse_insights.reports.title"}}
-          <DTooltip
-            class="insights-reports-info"
-            @icon="circle-info"
-            @content={{i18n "discourse_insights.reports.personal_hint"}}
-          />
+          {{#if this.expanded}}
+            <DButton
+              class="btn-transparent btn-small insights-reports-editor-link"
+              @action={{this.openEditor}}
+              @icon="pen-to-square"
+              @label="discourse_insights.editor.open_editor"
+            />
+          {{/if}}
         </:title>
         <:body>
           {{#each this.reports as |report|}}
@@ -123,6 +132,7 @@ export default class InsightsReportsSection extends Component {
               @report={{report}}
               @startDate={{@startDate}}
               @endDate={{@endDate}}
+              @initialParams={{report.params}}
               @onRemove={{this.removeReport}}
               @onDragStart={{this.setDraggedReport}}
               @onReorder={{this.reorderReport}}

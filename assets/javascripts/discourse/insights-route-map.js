@@ -1,3 +1,5 @@
 export default function () {
-  this.route("insights");
+  this.route("insights", function () {
+    this.route("reports");
+  });
 }

@@ -18,6 +18,11 @@ describe DiscourseInsights::ReportsController do
     )
   end
 
+  def set_user_reports(user, entries)
+    user.custom_fields["insights_report_ids"] = entries
+    user.save_custom_fields
+  end
+
   describe "#index" do
     context "when logged in as admin" do
       before { sign_in(admin) }
@@ -34,14 +39,17 @@ describe DiscourseInsights::ReportsController do
         expect(reports[0]["id"]).to eq(query.id)
         expect(reports[0]["name"]).to eq("Test Query")
         expect(reports[0]["insights"]).to eq(true)
+        expect(reports[0]["params"]).to eq({})
       end
 
       it "returns user-specific reports when customized" do
         q1 = create_de_query(name: "Query 1")
         q2 = create_de_query(name: "Query 2")
         PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
-        admin.custom_fields["insights_report_ids"] = [q1.id, q2.id]
-        admin.save_custom_fields
+        set_user_reports(
+          admin,
+          [{ "query_id" => q1.id, "params" => {} }, { "query_id" => q2.id, "params" => {} }],
+        )
 
         get "/insights/reports.json"
         reports = response.parsed_body["reports"]
@@ -53,9 +61,30 @@ describe DiscourseInsights::ReportsController do
         expect(custom["insights"]).to eq(false)
       end
 
-      it "skips deleted queries" do
-        admin.custom_fields["insights_report_ids"] = [99_999]
+      it "returns stored params per report" do
+        q1 = create_de_query(name: "Query 1")
+        set_user_reports(admin, [{ "query_id" => q1.id, "params" => { "category_id" => "5" } }])
+
+        get "/insights/reports.json"
+        reports = response.parsed_body["reports"]
+        expect(reports.length).to eq(1)
+        expect(reports[0]["params"]).to eq({ "category_id" => "5" })
+      end
+
+      it "handles legacy integer-array format" do
+        q1 = create_de_query(name: "Legacy Query")
+        admin.custom_fields["insights_report_ids"] = [q1.id]
         admin.save_custom_fields
+
+        get "/insights/reports.json"
+        reports = response.parsed_body["reports"]
+        expect(reports.length).to eq(1)
+        expect(reports[0]["id"]).to eq(q1.id)
+        expect(reports[0]["params"]).to eq({})
+      end
+
+      it "skips deleted queries" do
+        set_user_reports(admin, [{ "query_id" => 99_999, "params" => {} }])
 
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
@@ -64,8 +93,7 @@ describe DiscourseInsights::ReportsController do
       it "filters out hidden queries" do
         query = create_de_query
         query.update!(hidden: true)
-        admin.custom_fields["insights_report_ids"] = [query.id]
-        admin.save_custom_fields
+        set_user_reports(admin, [{ "query_id" => query.id, "params" => {} }])
 
         get "/insights/reports.json"
         expect(response.parsed_body["reports"]).to be_empty
@@ -89,8 +117,13 @@ describe DiscourseInsights::ReportsController do
         other_group = Fabricate(:group)
         DiscourseDataExplorer::QueryGroup.create!(query_id: restricted.id, group_id: other_group.id)
 
-        member.custom_fields["insights_report_ids"] = [accessible.id, restricted.id]
-        member.save_custom_fields
+        set_user_reports(
+          member,
+          [
+            { "query_id" => accessible.id, "params" => {} },
+            { "query_id" => restricted.id, "params" => {} },
+          ],
+        )
 
         get "/insights/reports.json"
         names = response.parsed_body["reports"].map { |r| r["name"] }
@@ -111,6 +144,93 @@ describe DiscourseInsights::ReportsController do
 
       it "denies access" do
         get "/insights/reports.json"
+        expect(response.status).to eq(403)
+      end
+    end
+  end
+
+  describe "#save" do
+    before { sign_in(admin) }
+
+    it "saves a set of reports with params" do
+      q1 = create_de_query(name: "Query 1")
+      q2 = create_de_query(name: "Query 2")
+
+      put "/insights/reports/save.json",
+          params: {
+            reports: [
+              { query_id: q1.id, params: { category_id: "3" } },
+              { query_id: q2.id, params: {} },
+            ],
+          }
+      expect(response.status).to eq(200)
+
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries.length).to eq(2)
+      expect(entries[0]["query_id"]).to eq(q1.id)
+      expect(entries[0]["params"]).to eq({ "category_id" => "3" })
+      expect(entries[1]["query_id"]).to eq(q2.id)
+    end
+
+    it "strips date params" do
+      q1 = create_de_query(name: "Query 1")
+
+      put "/insights/reports/save.json",
+          params: {
+            reports: [
+              {
+                query_id: q1.id,
+                params: {
+                  category_id: "3",
+                  start_date: "2026-01-01",
+                  end_date: "2026-02-01",
+                },
+              },
+            ],
+          }
+      expect(response.status).to eq(200)
+
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries[0]["params"]).to eq({ "category_id" => "3" })
+    end
+
+    it "preserves report order" do
+      q1 = create_de_query(name: "Query 1")
+      q2 = create_de_query(name: "Query 2")
+      q3 = create_de_query(name: "Query 3")
+
+      put "/insights/reports/save.json",
+          params: {
+            reports: [
+              { query_id: q3.id, params: {} },
+              { query_id: q1.id, params: {} },
+              { query_id: q2.id, params: {} },
+            ],
+          }
+      expect(response.status).to eq(200)
+
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries.map { |e| e["query_id"] }).to eq([q3.id, q1.id, q2.id])
+    end
+
+    it "rejects hidden queries" do
+      query = create_de_query
+      query.update!(hidden: true)
+
+      put "/insights/reports/save.json", params: { reports: [{ query_id: query.id, params: {} }] }
+      expect(response.status).to eq(404)
+    end
+
+    it "rejects missing reports param" do
+      put "/insights/reports/save.json"
+      expect(response.status).to eq(400)
+    end
+
+    context "when user is not in allowed groups" do
+      before { sign_in(user) }
+
+      it "denies access" do
+        put "/insights/reports/save.json", params: { reports: [{ query_id: 1, params: {} }] }
         expect(response.status).to eq(403)
       end
     end
@@ -285,20 +405,19 @@ describe DiscourseInsights::ReportsController do
       post "/insights/reports.json", params: { query_id: query.id }
       expect(response.status).to eq(200)
 
-      ids = admin.reload.custom_fields["insights_report_ids"]
-      expect(ids).to include(query.id)
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries.any? { |e| e["query_id"] == query.id }).to eq(true)
     end
 
     it "does not duplicate an already-added query" do
       query = create_de_query
-      admin.custom_fields["insights_report_ids"] = [query.id]
-      admin.save_custom_fields
+      set_user_reports(admin, [{ "query_id" => query.id, "params" => {} }])
 
       post "/insights/reports.json", params: { query_id: query.id }
       expect(response.status).to eq(200)
 
-      ids = admin.reload.custom_fields["insights_report_ids"]
-      expect(ids.count(query.id)).to eq(1)
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries.count { |e| e["query_id"] == query.id }).to eq(1)
     end
 
     it "returns 404 for non-existent query" do
@@ -320,14 +439,13 @@ describe DiscourseInsights::ReportsController do
 
     it "removes a query from the user's reports" do
       query = create_de_query
-      admin.custom_fields["insights_report_ids"] = [query.id]
-      admin.save_custom_fields
+      set_user_reports(admin, [{ "query_id" => query.id, "params" => {} }])
 
       delete "/insights/reports/#{query.id}.json"
       expect(response.status).to eq(200)
 
-      ids = admin.reload.custom_fields["insights_report_ids"]
-      expect(ids).not_to include(query.id)
+      entries = admin.reload.custom_fields["insights_report_ids"]
+      expect(entries.any? { |e| e["query_id"] == query.id }).to eq(false)
     end
   end
 
@@ -341,8 +459,7 @@ describe DiscourseInsights::ReportsController do
       q3 = create_de_query(name: "Custom Query")
 
       PluginStore.set("discourse-insights", "seeded_query_ids", [q1.id])
-      admin.custom_fields["insights_report_ids"] = [q1.id]
-      admin.save_custom_fields
+      set_user_reports(admin, [{ "query_id" => q1.id, "params" => {} }])
 
       get "/insights/reports/available.json"
       expect(response.status).to eq(200)

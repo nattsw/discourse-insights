@@ -82,6 +82,9 @@ export default class InsightsReportChart extends Component {
       if (this.args.endDate) {
         data.end_date = this.args.endDate;
       }
+      if (this.args.initialParams) {
+        Object.assign(data, this.args.initialParams);
+      }
       const result = await ajax(
         `/insights/reports/${this.args.report.id}/run.json`,
         { data }
@@ -335,12 +338,27 @@ export default class InsightsReportChart extends Component {
         : event.target.value;
     this.editableParams = new Map(this.editableParams);
     this.editableParams.set(identifier, val);
+    this._notifyParamsChange();
   }
 
   @action
   updateCategoryParam(identifier, categoryId) {
     this.editableParams = new Map(this.editableParams);
     this.editableParams.set(identifier, categoryId ? String(categoryId) : "");
+    this._notifyParamsChange();
+  }
+
+  _notifyParamsChange() {
+    if (!this.args.onParamsChange) {
+      return;
+    }
+    const params = {};
+    for (const [key, val] of this.editableParams) {
+      if (val !== null && val !== undefined && val !== "") {
+        params[key] = val;
+      }
+    }
+    this.args.onParamsChange(this.args.report.id, params);
   }
 
   @action
@@ -364,6 +382,7 @@ export default class InsightsReportChart extends Component {
         this.queryParams.map((p) => [p.identifier, p.value ?? p.default])
       );
       this.error = false;
+      this._notifyParamsChange();
 
       if (
         this._canvas &&
