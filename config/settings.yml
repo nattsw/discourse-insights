@@ -5,7 +5,7 @@ discourse_insights:
   insights_allowed_groups:
     type: group_list
     list_type: compact
-    default: "1|2"
+    default: "1"
     allow_any: false
     refresh: true
   insights_activity_weight:
