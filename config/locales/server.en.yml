@@ -2,7 +2,7 @@ en:
   discourse_insights:
     ai_persona:
       name: "Insights Advisor"
-      description: "Synthesizes community health metrics into actionable insights for community managers and stakeholders."
+      description: "Synthesizes community health metrics into actionable insights for community managers & stakeholders."
     feedback_pm:
       title: "New Insights feedback"
       item: "@%{username} said:\n\n> %{comment}"

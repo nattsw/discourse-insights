@@ -19,10 +19,7 @@ module ::DiscourseInsights
 
   SEEDED_QUERIES = [
     # default top 4
-    {
-      name: "Active Users",
-      description: "Unique users who visited.",
-      sql: <<~SQL,
+    { name: "Active Users", description: "Unique users who visited.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
         -- date :end_date = #{Date.today}
@@ -31,7 +28,6 @@ module ::DiscourseInsights
         WHERE visited_at BETWEEN :start_date AND :end_date
         GROUP BY week ORDER BY week
       SQL
-    },
     { name: "Topics by Category", description: "New topics per category.", sql: <<~SQL },
         -- [params]
         -- date :start_date = #{30.days.ago.to_date}
@@ -192,8 +188,7 @@ module ::DiscourseInsights
     },
     {
       name: "Unanswered Topics",
-      description:
-        "Topics that received no replies. Shows the support gap.",
+      description: "Topics that received no replies. Shows the support gap.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -210,8 +205,7 @@ module ::DiscourseInsights
     },
     {
       name: "Avg First Response Time",
-      description:
-        "Average hours until a topic receives its first reply. Lower is better.",
+      description: "Average hours until a topic receives its first reply. Lower is better.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -251,8 +245,7 @@ module ::DiscourseInsights
     },
     {
       name: "Trust Level Promotions",
-      description:
-        "Users promoted to a higher trust level. Shows community maturation over time.",
+      description: "Users promoted to a higher trust level. Shows community maturation over time.",
       sql: <<~SQL,
         -- [params]
         -- date :start_date = #{12.weeks.ago.to_date}
@@ -383,9 +376,7 @@ after_initialize do
       end
     old_seeded_ids = PluginStore.get(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids") || []
     orphaned_ids = old_seeded_ids - seeded_ids
-    if orphaned_ids.present?
-      DiscourseDataExplorer::Query.where(id: orphaned_ids).destroy_all
-    end
+    DiscourseDataExplorer::Query.where(id: orphaned_ids).destroy_all if orphaned_ids.present?
 
     PluginStore.set(DiscourseInsights::PLUGIN_NAME, "seeded_query_ids", seeded_ids)
 
@@ -429,7 +420,9 @@ after_initialize do
 
       ## How to write insights
 
-      - Lead with the insight, not the number. Say "engagement is deepening — 15% more members posted this period" not "posts: 1,234 (up 15%)."
+      - The user can already see every number on the dashboard. NEVER restate metrics. Your job is to explain what the numbers mean and what to do about them.
+      - Lead with the insight, not the number. Say "your community is becoming self-sustaining — members are answering questions before staff need to" not "response rate: 82% (up 5%)."
+      - Connect metrics to each other. A visitor increase paired with flat signups means your funnel is leaking. A post increase with fewer contributors means a small group is doing all the work. These cross-metric stories are what the user can't see on their own.
       - Compare to the previous period. Trends matter more than absolutes.
       - Be specific about what's good and what needs attention. Don't hedge.
       - When something is declining, suggest a concrete action.
@@ -453,7 +446,7 @@ after_initialize do
 
       ## Output types
 
-      **summary**: 2-3 sentence narrative. Lead with the most important trend. Mention one bright spot and one area to watch.
+      **summary**: 2-3 sentence narrative. Identify the single most important change this period and explain WHY it matters for this community. Name one opportunity or one risk. Do not list metrics — tell the story the metrics reveal. Avoid generic suggestions.
 
       **categories**: Identify categories with declining engagement. Suggest specific actions (pin a discussion, create seed content, engage regulars).
 
