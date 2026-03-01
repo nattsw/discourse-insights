@@ -32,3 +32,6 @@ discourse_insights:
     default: 24
     min: 1
     max: 168
+  insights_live_enabled:
+    default: false
+    client: true

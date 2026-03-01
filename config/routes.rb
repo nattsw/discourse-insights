@@ -3,6 +3,7 @@
 DiscourseInsights::Engine.routes.draw do
   get "/health" => "health#show"
   post "/ai/generate" => "ai#generate"
+  get "/live" => "live#show"
   get "/reports" => "reports#index"
   get "/reports/available" => "reports#available"
   get "/reports/:id/run" => "reports#run"

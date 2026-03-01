@@ -24,6 +24,7 @@ import InsightsGeoMap from "./insights-geo-map";
 import InsightsReportChart from "./insights-report-chart";
 
 const AI_TIMEOUT_MS = 30000;
+const LIVE_POLL_INTERVAL_MS = 30000;
 
 const METRIC_KEYS = [
   "visitors",
@@ -89,9 +90,12 @@ export default class InsightsDashboard extends Component {
   @tracked aiAnswerDone = false;
   @tracked aiAnswerType = null;
   @tracked customQuestion = "";
+  @tracked liveData = null;
+  @tracked liveLoading = false;
   _aiSummaryTimer = null;
   _aiAnswerTimer = null;
   _aiCache = new Map();
+  _livePollTimer = null;
 
   constructor() {
     super(...arguments);
@@ -375,6 +379,106 @@ export default class InsightsDashboard extends Component {
     return !!this.expandedSections.reports;
   }
 
+  get isLiveExpanded() {
+    return !!this.expandedSections.live;
+  }
+
+  get liveActiveLabel() {
+    const count = this.liveData?.active_users ?? 0;
+    return i18n("discourse_insights.live.active_users", { count });
+  }
+
+  get liveComposingLabel() {
+    const total = this.liveData?.composing?.total ?? 0;
+    if (total === 0) {
+      return i18n("discourse_insights.live.composing.none");
+    }
+    return i18n("discourse_insights.live.composing", { count: total });
+  }
+
+  get liveComposingDetail() {
+    const c = this.liveData?.composing;
+    if (!c || c.total === 0) {
+      return null;
+    }
+    return i18n("discourse_insights.live.composing_detail", {
+      topic_replies: c.topic_replies,
+      chat: c.chat,
+    });
+  }
+
+  get liveHotCategories() {
+    const cats = this.liveData?.hot_categories ?? [];
+    if (!cats.length) {
+      return [];
+    }
+    return cats.slice(0, 5).map((cat) => ({
+      ...cat,
+      dotStyle: htmlSafe(`background-color:#${cat.color}`),
+    }));
+  }
+
+  get liveHotChatChannels() {
+    const channels = this.liveData?.hot_chat_channels ?? [];
+    if (!channels.length) {
+      return [];
+    }
+    return channels.slice(0, 5).map((ch) => ({
+      ...ch,
+      dotStyle: htmlSafe(`background-color:#${ch.color}`),
+      url: getURL(`/chat/c/${ch.slug || "-"}/${ch.channel_id}`),
+    }));
+  }
+
+  get liveStream() {
+    return (this.liveData?.activity_stream ?? []).map((item) => {
+      let text, url, dotType, countsText;
+
+      if (item.type === "topic_activity") {
+        url = getURL(`/t/-/${item.topic_id}`);
+        dotType = item.is_new ? "new_topic" : "post";
+        const parts = [];
+        if (item.replies > 0) {
+          parts.push(
+            i18n("discourse_insights.live.replies", { count: item.replies })
+          );
+        }
+        if (item.likes > 0) {
+          parts.push(
+            i18n("discourse_insights.live.likes", { count: item.likes })
+          );
+        }
+        countsText = parts.join(", ");
+      } else if (item.type === "new_users") {
+        text = i18n("discourse_insights.live.new_users_grouped", {
+          count: item.count,
+        });
+        dotType = "new_user";
+      } else if (item.type === "new_user") {
+        text = i18n("discourse_insights.live.new_user", {
+          username: item.username,
+        });
+        dotType = "new_user";
+      } else if (item.type === "solved") {
+        text = i18n("discourse_insights.live.solved", {
+          username: item.username,
+          title: item.topic_title,
+        });
+        url = getURL(`/t/-/${item.topic_id}`);
+        dotType = "solved";
+      }
+
+      return {
+        ...item,
+        text,
+        url,
+        dotType,
+        countsText,
+        relativeTime: moment(item.created_at).fromNow(),
+      };
+    });
+  }
+
   @action
   async changePeriod(periodId) {
     if (this.period === periodId && !this.isCustomPeriod) {
@@ -502,10 +606,43 @@ export default class InsightsDashboard extends Component {
 
   @action
   toggleExplore(key) {
+    const willExpand = !this.expandedSections[key];
     this.expandedSections = {
       ...this.expandedSections,
-      [key]: !this.expandedSections[key],
+      [key]: willExpand,
     };
+    if (key === "live") {
+      if (willExpand) {
+        this.fetchLiveData();
+      } else {
+        this.stopLivePolling();
+      }
+    }
+  }
+
+  // live view methods
+
+  async fetchLiveData() {
+    this.liveLoading = !this.liveData;
+    try {
+      this.liveData = await ajax("/insights/live.json");
+    } catch {
+      // silently fail — live view is best-effort
+    } finally {
+      this.liveLoading = false;
+    }
+    if (this.isLiveExpanded) {
+      this._livePollTimer = later(
+        this,
+        this.fetchLiveData,
+        LIVE_POLL_INTERVAL_MS
+      );
+    }
+  }
+
+  stopLivePolling() {
+    cancel(this._livePollTimer);
+    this._livePollTimer = null;
   }
 
   // ai methods
@@ -521,6 +658,7 @@ export default class InsightsDashboard extends Component {
     this.messageBus.unsubscribe("/insights/ai/stream", this._onAiStream);
     cancel(this._aiSummaryTimer);
     cancel(this._aiAnswerTimer);
+    this.stopLivePolling();
   }
 
   @bind
@@ -1008,6 +1146,162 @@ export default class InsightsDashboard extends Component {
                 </div>
               {{else if this.questionAnswer}}
                 <div class="insights-answer__text">{{this.questionAnswer}}</div>
+              {{/if}}
+            </div>
+          {{/if}}
+        </div>
+
+        {{! Live View }}
+        <div class="insights-explore insights-live">
+          <button
+            type="button"
+            class="insights-explore__toggle
+              {{if this.isLiveExpanded 'insights-explore__toggle--open'}}"
+            aria-expanded={{if this.isLiveExpanded "true" "false"}}
+            {{on "click" (fn this.toggleExplore "live")}}
+          >
+            <span class="insights-explore__icon">›</span>
+            <span class="insights-explore__title">
+              <span class="insights-live__pulse"></span>
+              {{i18n "discourse_insights.live.title"}}
+            </span>
+            <span class="insights-explore__summary">{{i18n
+                "discourse_insights.live.summary"
+              }}</span>
+          </button>
+          {{#if this.isLiveExpanded}}
+            <div class="insights-explore__body insights-live__body">
+              {{#if this.liveLoading}}
+                <div class="spinner small"></div>
+              {{else if this.liveData}}
+                <div class="insights-live__stats">
+                  <div class="insights-live__stat">
+                    <span
+                      class="insights-live__stat-value"
+                    >{{this.liveData.active_users}}</span>
+                    <span
+                      class="insights-live__stat-label"
+                    >{{this.liveActiveLabel}}</span>
+                  </div>
+                  <div class="insights-live__stat">
+                    <span
+                      class="insights-live__stat-value"
+                    >{{this.liveData.composing.total}}</span>
+                    <span
+                      class="insights-live__stat-label"
+                    >{{this.liveComposingLabel}}</span>
+                    {{#if this.liveComposingDetail}}
+                      <span
+                        class="insights-live__stat-detail"
+                      >{{this.liveComposingDetail}}</span>
+                    {{/if}}
+                  </div>
+                </div>
+
+                {{#if this.liveHotCategories.length}}
+                  <div class="insights-live__section">
+                    <div
+                      class="insights-live__section-title"
+                    >{{i18n "discourse_insights.live.hot_categories"}}</div>
+                    <div class="insights-live__hot-cats">
+                      {{#each this.liveHotCategories as |cat|}}
+                        <span class="insights-live__hot-cat">
+                          <span
+                            class="insights-cat-dot"
+                            style={{cat.dotStyle}}
+                          ></span>
+                          {{cat.name}}
+                          <span
+                            class="insights-live__hot-cat-count"
+                          >{{cat.recent_posts}}</span>
+                        </span>
+                      {{/each}}
+                      <span class="insights-live__hot-cats-suffix">{{i18n
+                          "discourse_insights.live.hot_categories_suffix"
+                        }}</span>
+                    </div>
+                  </div>
+                {{/if}}
+
+                {{#if this.liveHotChatChannels.length}}
+                  <div class="insights-live__section">
+                    <div
+                      class="insights-live__section-title"
+                    >{{i18n "discourse_insights.live.hot_chat_channels"}}</div>
+                    <div class="insights-live__hot-cats">
+                      {{#each this.liveHotChatChannels as |ch|}}
+                        <span class="insights-live__hot-cat">
+                          <span
+                            class="insights-cat-dot"
+                            style={{ch.dotStyle}}
+                          ></span>
+                          <a href={{ch.url}}>{{ch.name}}</a>
+                          <span
+                            class="insights-live__hot-cat-count"
+                          >{{ch.recent_messages}}</span>
+                        </span>
+                      {{/each}}
+                      <span class="insights-live__hot-cats-suffix">{{i18n
+                          "discourse_insights.live.hot_chat_suffix"
+                        }}</span>
+                    </div>
+                  </div>
+                {{/if}}
+
+                <div class="insights-live__section">
+                  <div
+                    class="insights-live__section-title"
+                  >{{i18n "discourse_insights.live.activity"}}</div>
+                  {{#if this.liveStream.length}}
+                    <ul class="insights-live__stream">
+                      {{#each this.liveStream as |item|}}
+                        <li class="insights-live__stream-item">
+                          <span
+                            class="insights-live__stream-type insights-live__stream-type--{{item.dotType}}"
+                          ></span>
+                          <span class="insights-live__stream-text">
+                            {{#if (eq item.type "topic_activity")}}
+                              <a href={{item.url}}>{{item.topic_title}}</a>
+                              {{#if item.countsText}}
+                                <span
+                                  class="insights-live__stream-counts"
+                                >{{item.countsText}}</span>
+                              {{/if}}
+                            {{else if item.url}}
+                              <a href={{item.url}}>{{item.text}}</a>
+                            {{else}}
+                              {{item.text}}
+                            {{/if}}
+                          </span>
+                          <span
+                            class="insights-live__stream-time"
+                          >{{item.relativeTime}}</span>
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <div class="insights-live__empty">{{i18n
+                        "discourse_insights.live.no_activity"
+                      }}</div>
+                  {{/if}}
+                </div>
+
+                <div class="insights-upsell">
+                  <div class="insights-upsell__text">
+                    <span class="insights-upsell__title">{{i18n
+                        "discourse_insights.live.anon_upsell_title"
+                      }}</span>
+                    <span class="insights-upsell__desc">{{i18n
+                        "discourse_insights.live.anon_upsell_desc"
+                      }}</span>
+                  </div>
+                  <a
+                    href="https://discourse.org/enterprise"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-primary insights-upsell__cta"
+                  >{{i18n "discourse_insights.explore.geo_upsell_cta"}}</a>
+                </div>
               {{/if}}
             </div>
           {{/if}}

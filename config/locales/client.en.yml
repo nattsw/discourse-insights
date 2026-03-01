@@ -82,6 +82,39 @@ en:
         show_data: "Show data"
         hide_data: "Hide data"
         open_in_data_explorer: "Open in Data Explorer"
+      live:
+        title: "Live"
+        summary: "What's happening right now"
+        active_users:
+          one: "%{count} active user"
+          other: "%{count} active users"
+        composing:
+          none: "Nobody composing"
+          one: "%{count} person composing"
+          other: "%{count} people composing"
+        composing_detail: "%{topic_replies} in topics, %{chat} in chat"
+        hot_categories: "Hot Categories"
+        recent_posts: "posts in the last hour"
+        activity: "Recent Activity"
+        new_topic: "%{username} started \"%{title}\""
+        post: "%{username} replied in \"%{title}\""
+        like: "%{username} liked a post in \"%{title}\""
+        new_user: "%{username} joined the community"
+        solved: "%{username} solved \"%{title}\""
+        replies:
+          one: "%{count} reply"
+          other: "%{count} replies"
+        likes:
+          one: "%{count} like"
+          other: "%{count} likes"
+        new_users_grouped:
+          other: "%{count} new members joined"
+        hot_categories_suffix: "posts in last hour"
+        hot_chat_channels: "Active Chat"
+        hot_chat_suffix: "messages in last 30 min"
+        no_activity: "No activity in the last 10 minutes."
+        anon_upsell_title: "Track anonymous visitor activity"
+        anon_upsell_desc: "See what anonymous visitors are browsing in real time — not just logged-in members. Available on the Enterprise plan."
       explore:
         content: "Content Performance"
         content_summary: "Top topics, search terms"

@@ -12,3 +12,4 @@ en:
     insights_content_weight: "Weight for the Content dimension in the health score."
     insights_responsiveness_weight: "Weight for the Responsiveness dimension in the health score."
     insights_unanswered_threshold_hours: "Hours before a topic is considered unanswered in attention alerts."
+    insights_live_enabled: "Enable the Live View section on the Insights page showing real-time community activity. Runs additional queries every 25 seconds while the page is open — enable with care on very large sites."
