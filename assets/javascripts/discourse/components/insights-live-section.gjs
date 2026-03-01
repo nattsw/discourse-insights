@@ -4,7 +4,23 @@ import getURL from "discourse/lib/get-url";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
 
+function humanWindow(minutes) {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.round(minutes / 60);
+  return hours === 1 ? "hour" : `${hours} hours`;
+}
+
 export default class InsightsLiveSection extends Component {
+  get categoriesWindow() {
+    return humanWindow(this.args.liveData?.windows?.categories_minutes ?? 60);
+  }
+
+  get chatWindow() {
+    return humanWindow(this.args.liveData?.windows?.chat_minutes ?? 30);
+  }
+
   get activeLabel() {
     const count = this.args.liveData?.active_users ?? 0;
     return i18n("discourse_insights.live.active_users", { count });
@@ -147,6 +163,7 @@ export default class InsightsLiveSection extends Component {
             {{/each}}
             <span class="insights-live__hot-cats-suffix">{{i18n
                 "discourse_insights.live.hot_categories_suffix"
+                window=this.categoriesWindow
               }}</span>
           </div>
         </div>
@@ -172,6 +189,7 @@ export default class InsightsLiveSection extends Component {
             {{/each}}
             <span class="insights-live__hot-cats-suffix">{{i18n
                 "discourse_insights.live.hot_chat_suffix"
+                window=this.chatWindow
               }}</span>
           </div>
         </div>

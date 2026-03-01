@@ -11,12 +11,17 @@ module ::DiscourseInsights
     CACHE_KEY = "insights_live"
     CACHE_TTL = 25.seconds
     ACTIVE_THRESHOLD = 5.minutes
-    STREAM_WINDOW = 10.minutes
-    HOT_CATEGORIES_WINDOW = 1.hour
-    HOT_CHAT_WINDOW = 30.minutes
     MAX_GROUPED_ITEMS = 10
     MAX_HOT_CATEGORIES = 5
     MAX_HOT_CHAT_CHANNELS = 5
+
+    # activity tiers: [min_posts_per_hour, stream_window, categories_window, chat_window]
+    ACTIVITY_TIERS = [
+      { min_posts: 20, stream: 10.minutes, categories: 1.hour, chat: 30.minutes },
+      { min_posts: 5, stream: 1.hour, categories: 4.hours, chat: 2.hours },
+      { min_posts: 1, stream: 4.hours, categories: 12.hours, chat: 8.hours },
+      { min_posts: 0, stream: 24.hours, categories: 24.hours, chat: 24.hours },
+    ]
 
     def show
       data = Discourse.cache.fetch(CACHE_KEY, expires_in: CACHE_TTL) { compute }
@@ -26,14 +31,38 @@ module ::DiscourseInsights
     private
 
     def compute
+      tier = detect_activity_tier
+
       result = {
         active_users: compute_active_users,
         composing: compute_composing,
-        hot_categories: compute_hot_categories,
-        activity_stream: compute_activity_stream,
+        hot_categories: compute_hot_categories(tier[:categories]),
+        activity_stream: compute_activity_stream(tier[:stream]),
+        windows: {
+          stream_minutes: (tier[:stream] / 60).to_i,
+          categories_minutes: (tier[:categories] / 60).to_i,
+          chat_minutes: (tier[:chat] / 60).to_i,
+        },
       }
-      result[:hot_chat_channels] = compute_hot_chat_channels if chat_enabled?
+      result[:hot_chat_channels] = compute_hot_chat_channels(tier[:chat]) if chat_enabled?
       result
+    end
+
+    def detect_activity_tier
+      recent_posts =
+        DB.query_single(<<~SQL).first
+          SELECT COUNT(*)
+          FROM posts p
+          JOIN topics t ON t.id = p.topic_id
+          WHERE p.created_at > NOW() - INTERVAL '1 hour'
+            AND p.deleted_at IS NULL
+            AND t.deleted_at IS NULL
+            AND t.visible = true
+            AND p.post_type = 1
+            AND p.hidden = false
+        SQL
+
+      ACTIVITY_TIERS.find { |t| recent_posts >= t[:min_posts] }
     end
 
     def compute_active_users
@@ -102,9 +131,9 @@ module ::DiscourseInsights
       { topic_replies: topic_replies, chat: chat_replies, total: topic_replies + chat_replies }
     end
 
-    def compute_hot_categories
+    def compute_hot_categories(window)
       DB
-        .query(<<~SQL, window: HOT_CATEGORIES_WINDOW.ago, limit: MAX_HOT_CATEGORIES)
+        .query(<<~SQL, window: window.ago, limit: MAX_HOT_CATEGORIES)
           SELECT c.id AS category_id, c.name, c.color, COUNT(*) AS recent_posts
           FROM posts p
           JOIN topics t ON t.id = p.topic_id
@@ -134,8 +163,8 @@ module ::DiscourseInsights
         end
     end
 
-    def compute_activity_stream
-      cutoff = STREAM_WINDOW.ago
+    def compute_activity_stream(window)
+      cutoff = window.ago
       posts_by_topic = {}
 
       # recent posts — fetch more for grouping headroom
@@ -298,9 +327,9 @@ module ::DiscourseInsights
       defined?(::Chat) && ActiveRecord::Base.connection.table_exists?("chat_messages")
     end
 
-    def compute_hot_chat_channels
+    def compute_hot_chat_channels(window)
       DB
-        .query(<<~SQL, window: HOT_CHAT_WINDOW.ago, limit: MAX_HOT_CHAT_CHANNELS)
+        .query(<<~SQL, window: window.ago, limit: MAX_HOT_CHAT_CHANNELS)
           SELECT cc.id AS channel_id, cc.name, c.color, cc.slug, COUNT(*) AS recent_messages
           FROM chat_messages cm
           JOIN chat_channels cc ON cc.id = cm.chat_channel_id

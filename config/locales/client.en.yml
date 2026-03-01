@@ -110,10 +110,10 @@ en:
           other: "%{count} likes"
         new_users_grouped:
           other: "%{count} new members joined"
-        hot_categories_suffix: "posts in last hour"
+        hot_categories_suffix: "posts in last %{window}"
         hot_chat_channels: "Active Chat"
-        hot_chat_suffix: "messages in last 30 min"
-        no_activity: "No activity in the last 10 minutes."
+        hot_chat_suffix: "messages in last %{window}"
+        no_activity: "No recent activity."
         anon_upsell_title: "Track anonymous visitor activity"
         anon_upsell_desc: "See what anonymous visitors are browsing in real time — not just logged-in members. Available on the Enterprise plan."
       explore:
