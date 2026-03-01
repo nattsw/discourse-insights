@@ -144,6 +144,7 @@
   padding: 0.625em 1em;
   display: flex;
   flex-direction: column;
+  align-items: center;
   min-width: 100px;
   cursor: pointer;
   transition:
@@ -176,6 +177,35 @@
 
   &__trend {
     font-size: var(--font-down-1);
+  }
+
+  &--static {
+    cursor: default;
+
+    &:hover {
+      border-color: var(--primary-low);
+      background: var(--primary-very-low);
+    }
+  }
+
+  &--upsell {
+    border-style: dashed;
+    color: var(--primary-medium);
+    cursor: pointer;
+
+    .insights-metric__value {
+      font-size: var(--font-up-2);
+      color: var(--primary-medium);
+    }
+
+    &:hover {
+      border-color: var(--tertiary);
+      color: var(--tertiary);
+
+      .insights-metric__value {
+        color: var(--tertiary);
+      }
+    }
   }
 }
 
@@ -1085,28 +1115,7 @@
 
   &__stats {
     display: flex;
-    gap: 2em;
-  }
-
-  &__stat {
-    display: flex;
-    flex-direction: column;
-
-    &-value {
-      font-size: var(--font-up-4);
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    &-label {
-      font-size: var(--font-down-1);
-      color: var(--primary-medium);
-    }
-
-    &-detail {
-      font-size: var(--font-down-2);
-      color: var(--primary-low-mid);
-    }
+    gap: 0.5em;
   }
 
   &__section {

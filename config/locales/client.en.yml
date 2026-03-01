@@ -86,14 +86,12 @@ en:
       live:
         title: "Live"
         summary: "What's happening right now"
-        active_users:
-          one: "%{count} active user"
-          other: "%{count} active users"
-        composing:
-          none: "No one is writing"
-          one: "%{count} person writing"
-          other: "%{count} people writing"
-        composing_detail: "%{topic_replies} in topics, %{chat} in chat"
+        active_users_label: "Users Active"
+        writing_label: "Users Writing"
+        upsell_label: "More Stats"
+        coming_soon_title: "Coming Soon"
+        coming_soon_body: "More real-time stats are on the way."
+        writing_detail: "%{topic_replies} in topics, %{chat} in chat"
         hot_categories: "Hot Categories"
         recent_posts: "posts in the last hour"
         activity: "Recent Activity"

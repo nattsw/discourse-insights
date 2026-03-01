@@ -3,12 +3,14 @@ import { tracked } from "@glimmer/tracking";
 import { on } from "@ember/modifier";
 import { action } from "@ember/object";
 import { cancel, later } from "@ember/runloop";
+import { service } from "@ember/service";
 import { htmlSafe } from "@ember/template";
 import { ajax } from "discourse/lib/ajax";
 import getURL from "discourse/lib/get-url";
 import KeyValueStore from "discourse/lib/key-value-store";
 import { eq } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
+import InsightsComingSoonModal from "./insights-coming-soon-modal";
 import InsightsExploreSection from "./insights-explore-section";
 
 const store = new KeyValueStore("discourse_insights_");
@@ -24,6 +26,8 @@ function humanWindow(minutes) {
 }
 
 export default class InsightsLiveSection extends Component {
+  @service modal;
+
   @tracked expanded = !!store.getObject("live_expanded");
   @tracked liveData = null;
   @tracked loading = false;
@@ -51,25 +55,12 @@ export default class InsightsLiveSection extends Component {
     return humanWindow(this.liveData?.windows?.chat_minutes ?? 30);
   }
 
-  get activeLabel() {
-    const count = this.liveData?.active_users ?? 0;
-    return i18n("discourse_insights.live.active_users", { count });
-  }
-
-  get composingLabel() {
-    const total = this.liveData?.composing?.total ?? 0;
-    if (total === 0) {
-      return i18n("discourse_insights.live.composing.none");
-    }
-    return i18n("discourse_insights.live.composing", { count: total });
-  }
-
-  get composingDetail() {
+  get writingDetail() {
     const c = this.liveData?.composing;
     if (!c || c.total === 0) {
       return null;
     }
-    return i18n("discourse_insights.live.composing_detail", {
+    return i18n("discourse_insights.live.writing_detail", {
       topic_replies: c.topic_replies,
       chat: c.chat,
     });
@@ -174,6 +165,11 @@ export default class InsightsLiveSection extends Component {
     }
   }
 
+  @action
+  openComingSoon() {
+    this.modal.show(InsightsComingSoonModal);
+  }
+
   async _fetchLiveData() {
     this.loading = !this.liveData;
     try {
@@ -221,26 +217,36 @@ export default class InsightsLiveSection extends Component {
           {{else}}
             <div class="insights-card">
               <div class="insights-live__stats">
-                <div class="insights-live__stat">
+                <div class="insights-metric insights-metric--static">
+                  <span class="insights-metric__label">{{i18n
+                      "discourse_insights.live.active_users_label"
+                    }}</span>
                   <span
-                    class="insights-live__stat-value"
+                    class="insights-metric__value"
                   >{{this.liveData.active_users}}</span>
-                  <span
-                    class="insights-live__stat-label"
-                  >{{this.activeLabel}}</span>
                 </div>
-                <div class="insights-live__stat">
+                <div class="insights-metric insights-metric--static">
+                  <span class="insights-metric__label">{{i18n
+                      "discourse_insights.live.writing_label"
+                    }}</span>
                   <span
-                    class="insights-live__stat-value"
+                    class="insights-metric__value"
                   >{{this.liveData.composing.total}}</span>
-                  <span
-                    class="insights-live__stat-label"
-                  >{{this.composingLabel}}</span>
-                  {{#if this.composingDetail}}
+                  {{#if this.writingDetail}}
                     <span
-                      class="insights-live__stat-detail"
-                    >{{this.composingDetail}}</span>
+                      class="insights-metric__trend"
+                    >{{this.writingDetail}}</span>
                   {{/if}}
+                </div>
+                <div
+                  class="insights-metric insights-metric--upsell"
+                  role="button"
+                  {{on "click" this.openComingSoon}}
+                >
+                  <span class="insights-metric__label">{{i18n
+                      "discourse_insights.live.upsell_label"
+                    }}</span>
+                  <span class="insights-metric__value">+</span>
                 </div>
               </div>
 
