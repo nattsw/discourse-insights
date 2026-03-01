@@ -55,7 +55,7 @@ export default class InsightsDashboard extends Component {
   @tracked customStartDate = null;
   @tracked customEndDate = null;
   @tracked data = null;
-  @tracked loading = false;
+  @tracked loading = true;
   @tracked expandedSections = {};
   @tracked reports = null;
   @tracked reportsLoading = true;
@@ -80,15 +80,14 @@ export default class InsightsDashboard extends Component {
 
   constructor() {
     super(...arguments);
-    this.data = this.args.initialData;
 
-    const ctrl = this.args.controller;
-    if (ctrl?.start_date && ctrl?.end_date) {
+    const p = this.args.routeParams;
+    if (p?.start_date && p?.end_date) {
       this.period = "custom";
-      this.customStartDate = moment(ctrl.start_date);
-      this.customEndDate = moment(ctrl.end_date);
-    } else if (ctrl?.period) {
-      this.period = ctrl.period;
+      this.customStartDate = moment(p.start_date);
+      this.customEndDate = moment(p.end_date);
+    } else if (p?.period) {
+      this.period = p.period;
     }
 
     this.loadReports();
@@ -149,6 +148,20 @@ export default class InsightsDashboard extends Component {
 
   get isLiveExpanded() {
     return !!this.expandedSections.live;
+  }
+
+  async fetchInitialData() {
+    this.loading = true;
+    try {
+      this.data = await ajax("/insights/health.json", {
+        data: this._currentPeriodParams(),
+      });
+      this.triggerAiSummary();
+    } catch {
+      this.data = { error: true };
+    } finally {
+      this.loading = false;
+    }
   }
 
   // period actions
@@ -274,9 +287,9 @@ export default class InsightsDashboard extends Component {
   // ai
 
   @bind
-  subscribeAi() {
+  async subscribeAi() {
     this.messageBus.subscribe("/insights/ai/stream", this._onAiStream);
-    this.triggerAiSummary();
+    await this.fetchInitialData();
   }
 
   @bind
@@ -537,7 +550,7 @@ export default class InsightsDashboard extends Component {
         <div class="insights-error">
           {{i18n "discourse_insights.error"}}
         </div>
-      {{else}}
+      {{else if this.data}}
         <InsightsSummary
           @data={{this.data}}
           @aiAvailable={{this.aiAvailable}}
