@@ -2,7 +2,7 @@ import { click, fillIn, render } from "@ember/test-helpers";
 import { module, test } from "qunit";
 import { setupRenderingTest } from "discourse/tests/helpers/component-test";
 import pretender, { response } from "discourse/tests/helpers/create-pretender";
-import InsightsReportChart from "../../discourse/components/insights-report-chart";
+import InsightsReportChart, { clearReportCache } from "../../discourse/components/insights-report-chart";
 
 function mockRun(reportId, responseData) {
   pretender.get(`/insights/reports/${reportId}/run.json`, () =>
@@ -14,6 +14,7 @@ module(
   "Discourse Insights | Integration | Component | insights-report-chart",
   function (hooks) {
     setupRenderingTest(hooks);
+    hooks.beforeEach(() => clearReportCache());
 
     test("renders line chart for 2-column date data", async function (assert) {
       mockRun(1, {
@@ -468,6 +469,51 @@ module(
       assert
         .dom(".insights-report-chart__run-btn")
         .isNotDisabled("run button re-enabled after fetch");
+    });
+
+    test("@readonly hides remove button and grip icon, chart still renders", async function (assert) {
+      mockRun(17, {
+        columns: ["week", "count"],
+        rows: [
+          ["2025-01-06", 10],
+          ["2025-01-13", 20],
+        ],
+        params: [
+          { identifier: "start_date", type: "date", default: "2025-01-01", value: "2025-01-01" },
+        ],
+      });
+
+      const report = { id: 17, name: "Readonly Test", insights: false };
+      await render(
+        <template>
+          <InsightsReportChart @report={{report}} @readonly={{true}} />
+        </template>
+      );
+
+      assert
+        .dom(".insights-report-chart__canvas-wrap canvas")
+        .exists("chart still renders in readonly mode");
+      assert
+        .dom(".insights-report-chart__title")
+        .hasText("Readonly Test");
+      assert
+        .dom(".insights-report-chart__remove")
+        .doesNotExist("remove button hidden in readonly mode");
+      assert
+        .dom(".insights-report-chart__grip")
+        .doesNotExist("grip icon hidden in readonly mode");
+
+      await click(".insights-report-chart__toggle-btn");
+
+      assert
+        .dom(".insights-report-chart__run-btn")
+        .doesNotExist("run button hidden in readonly mode");
+      assert
+        .dom(".insights-report-chart__param-input")
+        .doesNotExist("param inputs hidden in readonly mode");
+      assert
+        .dom(".insights-report-chart__param-chip")
+        .exists({ count: 1 }, "params shown as read-only chips");
     });
   }
 );

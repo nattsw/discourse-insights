@@ -12,10 +12,15 @@ DiscourseInsights::Engine.routes.draw do
   put "/reports/save" => "reports#save"
   delete "/reports/:id" => "reports#remove"
   post "/feedback" => "feedback#create"
+  post "/shared-reports" => "shared_reports#create"
+  get "/shared-reports/:key" => "shared_reports#show"
+  put "/shared-reports/:key" => "shared_reports#update"
+  delete "/shared-reports/:key" => "shared_reports#destroy"
 end
 
 Discourse::Application.routes.draw do
   get "insights" => "discourse_insights/page#index"
   get "insights/reports" => "discourse_insights/page#index", :constraints => { format: "html" }
+  get "insights/reports/:key" => "discourse_insights/page#index", :constraints => { format: "html" }
   mount ::DiscourseInsights::Engine, at: "insights"
 end

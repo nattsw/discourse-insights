@@ -1,5 +1,7 @@
 en:
   discourse_insights:
+    shared_report:
+      max_reached: "You have reached the maximum number of shared reports."
     ai_persona:
       name: "Insights Advisor"
       description: "Synthesizes community health metrics into actionable insights for community managers & stakeholders."

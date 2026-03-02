@@ -11,6 +11,7 @@
 enabled_site_setting :insights_enabled
 
 register_asset "stylesheets/insights.scss"
+register_svg_icon "print"
 
 module ::DiscourseInsights
   PLUGIN_NAME = "discourse-insights"

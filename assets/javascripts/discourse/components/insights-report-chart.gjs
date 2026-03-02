@@ -13,7 +13,7 @@ import getURL from "discourse/lib/get-url";
 import discourseLater from "discourse/lib/later";
 import loadChartJS from "discourse/lib/load-chart-js";
 import CategoryChooser from "discourse/select-kit/components/category-chooser";
-import { eq } from "discourse/truth-helpers";
+import { and, eq, not } from "discourse/truth-helpers";
 import { i18n } from "discourse-i18n";
 
 const SERIES_COLORS = [
@@ -46,11 +46,49 @@ function isNumericColumn(rows, colIndex) {
   return false;
 }
 
+// client-side cache — deduplicates parallel requests and avoids
+// redundant fetches when navigating back to the same page
+const _cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
+
+export function clearReportCache() {
+  _cache.clear();
+}
+
+function fetchReport(reportId, params) {
+  const key = `${reportId}:${JSON.stringify(Object.entries(params).sort())}`;
+  const entry = _cache.get(key);
+
+  if (entry?.promise) {
+    return entry.promise;
+  }
+
+  if (entry?.data && Date.now() - entry.time < CACHE_TTL) {
+    return Promise.resolve(entry.data);
+  }
+
+  const promise = ajax(`/insights/reports/${reportId}/run.json`, {
+    data: params,
+  })
+    .then((data) => {
+      _cache.set(key, { data, time: Date.now() });
+      return data;
+    })
+    .catch((e) => {
+      _cache.delete(key);
+      throw e;
+    });
+
+  _cache.set(key, { promise });
+  return promise;
+}
+
 export default class InsightsReportChart extends Component {
   @service site;
 
   @tracked loading = true;
   @tracked error = false;
+  @tracked rateLimited = false;
   @tracked columns = null;
   @tracked rows = null;
   @tracked queryParams = null;
@@ -85,10 +123,7 @@ export default class InsightsReportChart extends Component {
       if (this.args.initialParams) {
         Object.assign(data, this.args.initialParams);
       }
-      const result = await ajax(
-        `/insights/reports/${this.args.report.id}/run.json`,
-        { data }
-      );
+      const result = await fetchReport(this.args.report.id, data);
       this.columns = result.columns;
       this.rows = result.rows;
       this.queryParams = result.params || [];
@@ -96,7 +131,9 @@ export default class InsightsReportChart extends Component {
         this.queryParams.map((p) => [p.identifier, p.value ?? p.default])
       );
       this.error = false;
-    } catch {
+      this.rateLimited = false;
+    } catch (e) {
+      this.rateLimited = e.jqXHR?.status === 429;
       this.error = true;
     } finally {
       this.loading = false;
@@ -371,10 +408,7 @@ export default class InsightsReportChart extends Component {
           data[key] = val;
         }
       }
-      const result = await ajax(
-        `/insights/reports/${this.args.report.id}/run.json`,
-        { data }
-      );
+      const result = await fetchReport(this.args.report.id, data);
       this.columns = result.columns;
       this.rows = result.rows;
       this.queryParams = result.params || [];
@@ -382,6 +416,7 @@ export default class InsightsReportChart extends Component {
         this.queryParams.map((p) => [p.identifier, p.value ?? p.default])
       );
       this.error = false;
+      this.rateLimited = false;
       this._notifyParamsChange();
 
       if (
@@ -396,7 +431,8 @@ export default class InsightsReportChart extends Component {
           this.buildChartConfig()
         );
       }
-    } catch {
+    } catch (e) {
+      this.rateLimited = e.jqXHR?.status === 429;
       this.error = true;
     } finally {
       this.rerunning = false;
@@ -475,7 +511,7 @@ export default class InsightsReportChart extends Component {
   <template>
     <div
       class={{concatClass "insights-report-chart" this.dragCssClass}}
-      draggable={{if this.site.desktopView "true" "false"}}
+      draggable={{if (and this.site.desktopView (not @readonly)) "true" "false"}}
       {{on "dragstart" this.dragStart}}
       {{on "dragover" this.dragOver}}
       {{on "dragenter" this.dragEnter}}
@@ -485,11 +521,13 @@ export default class InsightsReportChart extends Component {
     >
       <div class="insights-report-chart__header">
         <div class="insights-report-chart__title-wrap">
-          {{#if this.site.desktopView}}
-            <span class="insights-report-chart__grip">{{icon
-                "grip-lines"
-              }}</span>
-          {{/if}}
+          {{#unless @readonly}}
+            {{#if this.site.desktopView}}
+              <span class="insights-report-chart__grip">{{icon
+                  "grip-lines"
+                }}</span>
+            {{/if}}
+          {{/unless}}
           {{#if @report.insights}}<span
               class="insights-sparkle-badge"
               title={{i18n "discourse_insights.reports.insights_query_tooltip"}}
@@ -499,12 +537,14 @@ export default class InsightsReportChart extends Component {
             class="insights-report-chart__title"
           >{{@report.name}}</a>
         </div>
-        <DButton
-          class="btn-transparent btn-small insights-report-chart__remove"
-          @action={{this.removeReport}}
-          @icon="xmark"
-          @title="discourse_insights.reports.remove_tooltip"
-        />
+        {{#unless @readonly}}
+          <DButton
+            class="btn-transparent btn-small insights-report-chart__remove"
+            @action={{this.removeReport}}
+            @icon="xmark"
+            @title="discourse_insights.reports.remove_tooltip"
+          />
+        {{/unless}}
       </div>
       {{#if this.loading}}
         <div class="insights-report-chart__loading">
@@ -512,7 +552,11 @@ export default class InsightsReportChart extends Component {
         </div>
       {{else if this.error}}
         <div class="insights-report-chart__error">
-          {{i18n "discourse_insights.reports.chart_error"}}
+          {{if
+            this.rateLimited
+            (i18n "discourse_insights.reports.rate_limited")
+            (i18n "discourse_insights.reports.chart_error")
+          }}
         </div>
       {{else if this.rows.length}}
         <div class="insights-report-chart__canvas-wrap">
@@ -554,53 +598,63 @@ export default class InsightsReportChart extends Component {
           >
             {{#if this.showTable}}
               {{#if this.hasParams}}
-                <div class="insights-report-chart__params">
-                  {{#each this.editableParamFields as |p|}}
-                    {{#if p.editable}}
-                      <label class="insights-report-chart__param-field">
-                        <span
-                          class="insights-report-chart__param-label"
-                        >{{p.identifier}}</span>
-                        {{#if p.isCategory}}
-                          <CategoryChooser
-                            @value={{p.value}}
-                            @onChange={{fn
-                              this.updateCategoryParam
-                              p.identifier
-                            }}
-                            class="insights-report-chart__param-input insights-report-chart__param-category"
-                          />
-                        {{else if p.isCheckbox}}
-                          <input
-                            type="checkbox"
-                            checked={{eq p.value "true"}}
-                            class="insights-report-chart__param-input"
-                            {{on "change" (fn this.updateParam p.identifier)}}
-                          />
-                        {{else}}
-                          <input
-                            type={{p.inputType}}
-                            step={{p.inputStep}}
-                            value={{p.value}}
-                            class="insights-report-chart__param-input"
-                            {{on "change" (fn this.updateParam p.identifier)}}
-                          />
-                        {{/if}}
-                      </label>
-                    {{else}}
+                {{#if @readonly}}
+                  <div class="insights-report-chart__params">
+                    {{#each this.editableParamFields as |p|}}
                       <span
                         class="insights-report-chart__param-chip"
                       >{{p.identifier}}: {{p.value}}</span>
-                    {{/if}}
-                  {{/each}}
-                  <DButton
-                    class="btn-transparent btn-small insights-report-chart__run-btn"
-                    @action={{this.rerun}}
-                    @icon="play"
-                    @title="discourse_insights.reports.run"
-                    @disabled={{this.rerunning}}
-                  />
-                </div>
+                    {{/each}}
+                  </div>
+                {{else}}
+                  <div class="insights-report-chart__params">
+                    {{#each this.editableParamFields as |p|}}
+                      {{#if p.editable}}
+                        <label class="insights-report-chart__param-field">
+                          <span
+                            class="insights-report-chart__param-label"
+                          >{{p.identifier}}</span>
+                          {{#if p.isCategory}}
+                            <CategoryChooser
+                              @value={{p.value}}
+                              @onChange={{fn
+                                this.updateCategoryParam
+                                p.identifier
+                              }}
+                              class="insights-report-chart__param-input insights-report-chart__param-category"
+                            />
+                          {{else if p.isCheckbox}}
+                            <input
+                              type="checkbox"
+                              checked={{eq p.value "true"}}
+                              class="insights-report-chart__param-input"
+                              {{on "change" (fn this.updateParam p.identifier)}}
+                            />
+                          {{else}}
+                            <input
+                              type={{p.inputType}}
+                              step={{p.inputStep}}
+                              value={{p.value}}
+                              class="insights-report-chart__param-input"
+                              {{on "change" (fn this.updateParam p.identifier)}}
+                            />
+                          {{/if}}
+                        </label>
+                      {{else}}
+                        <span
+                          class="insights-report-chart__param-chip"
+                        >{{p.identifier}}: {{p.value}}</span>
+                      {{/if}}
+                    {{/each}}
+                    <DButton
+                      class="btn-transparent btn-small insights-report-chart__run-btn"
+                      @action={{this.rerun}}
+                      @icon="play"
+                      @title="discourse_insights.reports.run"
+                      @disabled={{this.rerunning}}
+                    />
+                  </div>
+                {{/if}}
               {{/if}}
               <div class="insights-report-chart__table-scroll">
                 <table class="insights-report-chart__table">

@@ -33,6 +33,7 @@ export default class InsightsReportEditor extends Component {
   @tracked reports = [];
   @tracked saving = false;
   @tracked dirty = false;
+  @tracked sharing = false;
 
   _savedState = null;
   _draggedReport = null;
@@ -160,6 +161,28 @@ export default class InsightsReportEditor extends Component {
   }
 
   @action
+  async share() {
+    this.sharing = true;
+    try {
+      const result = await ajax("/insights/shared-reports.json", {
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+          reports: this.reports.map((r) => ({
+            query_id: r.id,
+            params: r.params || {},
+          })),
+        }),
+      });
+      this.router.transitionTo("insights.reports.show", result.key);
+    } catch (e) {
+      popupAjaxError(e);
+    } finally {
+      this.sharing = false;
+    }
+  }
+
+  @action
   goBack() {
     this.router.transitionTo("insights");
   }
@@ -183,6 +206,17 @@ export default class InsightsReportEditor extends Component {
           {{/if}}
         </div>
         <div class="insights-report-editor__actions">
+          <DButton
+            class="btn-default"
+            @action={{this.share}}
+            @icon="link"
+            @label={{if
+              this.sharing
+              "discourse_insights.editor.sharing"
+              "discourse_insights.editor.share"
+            }}
+            @disabled={{this.sharing}}
+          />
           <DButton
             class="btn-primary"
             @action={{this.save}}
