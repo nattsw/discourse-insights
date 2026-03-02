@@ -126,6 +126,7 @@ en:
         top_topics: "Top Topics"
         search_terms: "Top Search Terms"
         content_gap_badge: "content gap"
+        content_gap_tooltip: "Users are searching for this but not finding relevant results"
         ctr: "%{value}% CTR"
         referrers: "Top Referrers"
         geography: "Member Geography"

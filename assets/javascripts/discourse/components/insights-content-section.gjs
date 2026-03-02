@@ -47,7 +47,12 @@ export default class InsightsContentSection extends Component {
               <td class="insights-rank-table__name">
                 {{term.term}}
                 {{#if term.content_gap}}
-                  <span class="insights-badge insights-badge--gap">{{i18n
+                  <span
+                    class="insights-badge insights-badge--gap"
+                    title={{i18n
+                      "discourse_insights.explore.content_gap_tooltip"
+                    }}
+                  >{{i18n
                       "discourse_insights.explore.content_gap_badge"
                     }}</span>
                 {{/if}}
